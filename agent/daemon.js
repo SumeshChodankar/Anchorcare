@@ -563,8 +563,9 @@ function withAccess(handle) {
       let body = "";
       for await (const chunk of req) { body += chunk; if (body.length > 4096) { res.writeHead(413).end(); return; } }
       let key = "";
-      try { key = String(JSON.parse(body || "{}").key || ""); } catch {}
-      if (!sameText(accessDigest(key), accessDigest(ACCESS_KEY))) {
+      try { key = String(JSON.parse(body || "{}").key || "").trim(); } catch {}   // a pasted key often brings a space or newline
+      const accepted = [ACCESS_KEY, HOSTED ? process.env.ANCHORCARE_ADMIN_KEY : ""].filter(Boolean);   // the caregiver key opens it too
+      if (!accepted.some(k => sameText(accessDigest(key), accessDigest(k)))) {
         failedLogins.set(ip, { count: (failed && failed.until > Date.now() ? failed.count : 0) + 1, until: Date.now() + 60_000 });
         res.writeHead(401, json).end(JSON.stringify({ error: "that key is not right" }));
         return;
