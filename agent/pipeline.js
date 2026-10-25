@@ -223,13 +223,17 @@ export function lifeCare(item) {
   return answerOnly(answer, "grounded-recall", { evidenceIds: [item.id], epistemicBasis: "reported" });
 }
 
-const ASKS_PLAN = /\b(appointment|visit|visiting|coming (?:to see|over|round)|plans?|scheduled|what(?:'s| is) next|next)\b/i;
+const ASKS_PLAN = /\b(appointment|visit|visiting|coming (?:to see|over|round)|plans?|planned|scheduled|what(?:'s| is) next|next)\b/i;
 
 /** "When is my appointment?" from an approved upcoming plan, or null when none exists. */
-export function planAnswer(asked, items) {
+export function planAnswer(asked, items, now = new Date(), timezone = "Europe/London") {
   const question = asQuestion(asked);
   if (!QUESTION_OPENER.test(question) || !ASKS_PLAN.test(question)) return null;
-  const next = items.filter(i => i.plan).sort((a, b) => +new Date(a.at) - +new Date(b.at))[0];
+  // "today" / "tomorrow" means that day (local), anything else the next plan still to come.
+  const offset = /\btomorrow\b/i.test(question) ? 1 : /\btoday\b/i.test(question) ? 0 : null;
+  const day = d => new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const fits = at => offset === null ? +at >= +now : day(at) === day(new Date(+now + offset * 86_400_000));
+  const next = items.filter(i => i.plan && fits(new Date(i.at))).sort((a, b) => +new Date(a.at) - +new Date(b.at))[0];
   if (!next) return null;
   return answerOnly(`${next.text.replace(/\.$/, "")} is on ${next.when}.`.replace(/^Planned/, "Your planned"),
     "grounded-plan", { evidenceIds: [next.id], epistemicBasis: "reported" });
@@ -542,7 +546,7 @@ export function createPipeline(ctx) {
         proposedAction: { action_type: "create_reminder", summary: turn.text.slice(0, 400),
                           target_person_id: cfg.subjectId, supporting_evidence_ids: [] }
       });
-    } else if (cfg.fastRecall && (plan = planAnswer(turn.text, lifeItems))) {
+    } else if (cfg.fastRecall && (plan = planAnswer(turn.text, lifeItems, now, cfg.timezone))) {
       care = plan;
       log("plan", care.evidenceIds[0]);
     } else if (lifeMatch && (lifeMatch.hits > quickHits

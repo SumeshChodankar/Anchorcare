@@ -854,10 +854,22 @@ test("life: people, preferences and logs answer plain questions, citing their ow
 });
 
 test("life: an approved upcoming plan answers 'when is my appointment'", () => {
-  const care = planAnswer("When is my next visit?", ITEMS);
+  const now = new Date("2026-10-25T12:00:00Z");
+  const care = planAnswer("When is my next visit?", ITEMS, now);
   assert.match(care.answer, /^Your planned visit with Sarah Mercer is on Monday 26 October at 2:00\s?pm\.$/i);
   assert.deepEqual(care.evidenceIds, ["pl_visit"]);
-  assert.equal(planAnswer("When is my appointment?", ITEMS.filter(i => !i.plan)), null, "no plan: fall through to her own words");
+  assert.equal(planAnswer("When is my appointment?", ITEMS.filter(i => !i.plan), now), null, "no plan: fall through to her own words");
+});
+
+test("plans: 'tomorrow' and 'today' mean that day; otherwise the next plan still to come", () => {
+  const now = new Date("2026-10-25T12:00:00Z");
+  const items = lifeEvidence({ ...LIFE, plans: [...LIFE.plans,
+    { _id: "pl_album", kind: "photo_album", eventStart: new Date("2026-10-25T10:58:00Z") }] }, "Europe/London");
+  assert.deepEqual(planAnswer("Can you tell me which appointment I have tomorrow?", items, now).evidenceIds, ["pl_visit"],
+    "this morning's album is not tomorrow's appointment");
+  assert.deepEqual(planAnswer("When is my next appointment?", items, now).evidenceIds, ["pl_visit"], "already past");
+  assert.deepEqual(planAnswer("What is planned for today?", items, now).evidenceIds, ["pl_album"]);
+  assert.equal(planAnswer("What is planned for tomorrow?", items, new Date("2026-10-26T12:00:00Z")), null, "nothing on the 27th");
 });
 
 test("life: a statement becomes a DRAFT personal record; questions and greetings do not", () => {

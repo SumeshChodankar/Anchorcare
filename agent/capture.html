@@ -359,9 +359,48 @@
   .speaker-quick-btn.active {
     background: rgba(56, 189, 248, 0.2); border-color: rgba(56, 189, 248, 0.5); color: #7dd3fc; font-weight: 600;
   }
+  .access-gate {
+    position: fixed; inset: 0; z-index: 1000; display: none; place-items: center; padding: 16px;
+    background: rgba(9, 10, 13, 0.92);
+  }
+  .access-gate.show { display: grid; }
+  .access-gate form {
+    width: min(380px, 100%); background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px; display: grid; gap: 12px; color: var(--ink);
+  }
+  .access-gate h2 { margin: 0; font-size: 17px; }
+  .access-gate p { margin: 0; color: var(--quiet); font-size: 13px; line-height: 1.5; }
+  .access-gate input {
+    background: var(--bg); border: 1px solid var(--border-focus); border-radius: 8px;
+    color: var(--ink); padding: 10px 12px; font-size: 14px;
+  }
+  .access-gate button {
+    background: var(--primary); color: #fff; border: 0; border-radius: 8px; padding: 10px; font-weight: 600; cursor: pointer;
+  }
+  .access-gate .error { color: var(--alert); min-height: 1em; }
 </style>
 </head>
 <body>
+<!-- Hosted, the agent answers only the care team: one key per browser, kept by the server as a cookie. -->
+<div class="access-gate" id="accessGate">
+  <form id="accessForm">
+    <h2>AnchorCare companion</h2>
+    <p>This companion can call the care team, so it needs the care team's access key.</p>
+    <input type="password" id="accessKey" autocomplete="current-password" placeholder="Access key" required>
+    <button type="submit">Open companion</button>
+    <p class="error" id="accessError"></p>
+  </form>
+</div>
+<script>
+  fetch("/status").then(r => { if (r.status === 401) document.getElementById("accessGate").classList.add("show"); }).catch(() => {});
+  document.getElementById("accessForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const res = await fetch("/login", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: document.getElementById("accessKey").value }) }).catch(() => null);
+    if (res && res.ok) location.reload();
+    else document.getElementById("accessError").textContent = res ? (await res.json().catch(() => ({}))).error || "Could not sign in" : "Not reachable";
+  });
+</script>
 <main>
   <!-- ALWAYS-ACTIVE VOICE ACTIVATOR BANNER -->
   <div class="voice-activator-banner" id="voiceActivatorBanner" title="Click to unlock continuous microphone capture and audible responses">
