@@ -24,6 +24,7 @@ await build({
 writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({
   runtime: 'nodejs22.x', handler: 'index.mjs', launcherType: 'Nodejs', shouldAddHelpers: false,
   maxDuration: 120,                        // a checked answer can take up to 90 s
+  regions: ['lhr1'],                       // beside the Atlas cluster (GCP europe-west2, London)
   supportsResponseStreaming: true,
 }, null, 2));
 writeFileSync(`${fn}/package.json`, JSON.stringify({ type: 'module' }));
