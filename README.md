@@ -2,6 +2,25 @@
 
 AnchorCare's original React/TypeScript prototype with Engram's MongoDB retrieval and proactive-trigger component integrated into the Express backend.
 
+## Demo Videos
+
+- **System Overview & Walkthrough**  
+  https://youtu.be/LCQWDoMntEg?is=JhPjxnf9YH5j61WX
+
+- **Medication & Companion Workflow Demo**  
+  https://youtu.be/wURSUnDup5M?is=qsPfqd5qlDpaIQ8K
+
+## Run
+
+Requires Node.js 22.12+ (tested with 24.22.1). Vite 8 does not support the previously installed Node 20.18 runtime.
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+# Copy .env.example to a private .env and configure it locally.
+npm run dev
+
+AnchorCare's original React/TypeScript prototype with Engram's MongoDB retrieval and proactive-trigger component integrated into the Express backend.
+
 ## Run
 
 Requires Node.js 22.12+ (tested with 24.22.1). Vite 8 does not support the previously installed Node 20.18 runtime.
