@@ -37,7 +37,8 @@ import { connect, AgentApprovalError } from "./store.js";
 import { createReasoner, hedged, thinking } from "./gemini.js";
 import { createPipeline } from "./pipeline.js";
 import * as callService from "./call-service.js";
-import { composeAlertMessage, sendCaregiverMessage } from "./message-service.js";
+import { composeAlertMessage, composeCallScript, sendCaregiverMessage, smsStatus } from "./message-service.js";
+import { loadLifeMemory, patientNameFrom } from "./life-memory.js";
 import { classifySpeaker } from "./speaker.js";
 import { SpokenLog, stripEcho } from "./echo.js";
 import { watchOutputs } from "./audio-output.js";
@@ -937,7 +938,10 @@ try {
   log("voice", enrollment ? `enrolled reference voice: ${enrollment.seconds.toFixed(1)} s` : "no voice enrolled: spoken personal questions will not be answered");
   const identity = await store.db.collection("identity_core")
     .findOne({ _id: cfg.subjectId }, { projection: { preferredName: 1 } });
-  subjectDisplayName = identity?.preferredName ?? null;
+  // The name callers and texts use: identity_core first, else the approved identity record.
+  subjectDisplayName = identity?.preferredName
+    ?? patientNameFrom(await loadLifeMemory(store.db, scope, new Date()).catch(() => null)) ?? null;
+  log("subject", `calls and texts will name ${subjectName()}`);
   const approved = await store.db.collection("episodes")
     .countDocuments({ ...scope, reviewStatus: "approved", isCurrent: true });
   log("ready", `${approved} approved episode(s) retrievable`);
@@ -949,18 +953,22 @@ try {
     reason: createReasoner(cfg),
     log,
     onCall: (turn, reason) => {
+      // The caregiver hears what is happening, her own words and where she is.
+      const script = composeCallScript({ reason, subjectName: subjectName(), said: turn.text,
+                                         location: lastLocationState, textSent: smsStatus().live });
       callService.initiateCall({
         reason: `${reason}: ${turn.text}`,
-        anonymous: true,
+        anonymous: false,
         broadcast,
-        subjectName: subjectName()
+        subjectName: subjectName(),
+        script
       });
     },
     // Every alert texts the care team on its own (simulated until live SMS is set up),
     // and the outcome is written onto the alert so the caregiver view shows it.
     onAlert: ({ alert, reason, headline, turn, locationContext }) => {
       const body = composeAlertMessage({
-        headline, subjectName: subjectName(), said: turn.text, location: locationContext
+        headline, reason, subjectName: subjectName(), said: turn.text, location: locationContext, timezone: cfg.timezone
       });
       sendCaregiverMessage({ body, reason }).then(async sent => {
         log("message", `${sent.mode} ${sent.status} → ${sent.to}  "${body.slice(0, 70)}…"${sent.note ? `  (${sent.note})` : ""}`);

@@ -63,8 +63,16 @@ export function getCallStatus() {
   };
 }
 
+const xml = text => String(text).replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[c]));
+
+/**
+ * `script` is what the caregiver hears: the situation, her own words and where she
+ * is (agent/message-service.js composeCallScript). It is said twice, because the
+ * first seconds of an unexpected call are often missed. Without a script the call
+ * falls back to the short anonymous notice.
+ */
 export async function initiateCall({ reason = "Call request", targetNumber = null, anonymous = true, broadcast = null,
-                                     subjectName = "the person in your care" }) {
+                                     subjectName = "the person in your care", script = null }) {
   const destination = targetNumber || getTargetPhoneNumber();
   lastCallAt = Date.now();
   const sid = process.env.TWILIO_ACCOUNT_SID;
@@ -77,7 +85,11 @@ export async function initiateCall({ reason = "Call request", targetNumber = nul
     `An alert has been triggered for ${String(subjectName).replace(/[<>&"']/g, "")}. ` +
     "Please check the AnchorCare portal for their live status and location.";
 
-  const twiml = `<Response><Say voice="Polly.Amy">${anonymousMessage}</Say></Response>`;
+  const spoken = script || anonymousMessage;
+  const twiml = script
+    ? `<Response><Say voice="Polly.Amy">${xml(script)}</Say><Pause length="1"/>` +
+      `<Say voice="Polly.Amy">I will repeat that. ${xml(script)}</Say></Response>`
+    : `<Response><Say voice="Polly.Amy">${xml(anonymousMessage)}</Say></Response>`;
 
   const callId = `call_${randomUUID()}`;
   const now = new Date();
@@ -87,7 +99,7 @@ export async function initiateCall({ reason = "Call request", targetNumber = nul
     callSid: callId,
     to: destination || "Demo Phone (+44 7700 900077)",
     mode: (isTwilioConfigured() && liveEnabled && destination) ? "twilio_live" : "simulation",
-    lastMessage: anonymousMessage,
+    lastMessage: spoken,
     startedAt: now,
     updatedAt: now
   };
@@ -206,8 +218,8 @@ export async function initiateCall({ reason = "Call request", targetNumber = nul
         to: currentCallState.to,
         mode: currentCallState.mode,
         anonymous: true,
-        spokenMessage: anonymousMessage,
-        message: `Call answered! Playing anonymous speech synthesis: "${anonymousMessage.slice(0, 80)}..."`
+        spokenMessage: spoken,
+        message: `Call answered! Playing: "${spoken.slice(0, 80)}..."`
       });
     }
   }, 3000);

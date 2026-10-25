@@ -14,6 +14,7 @@
     "test:memory": "node --test engram-retrieval/test/*.test.js",
     "agent": "node agent/daemon.js",
     "agent:kiosk": "node agent/kiosk.js",
+    "agent:twilio-check": "node agent/twilio-check.js",
     "agent:test": "node --test agent/agent.test.js",
     "schema:test": "node --test db/schema.test.js",
     "schema:audit-live": "node db/audit-live.js",

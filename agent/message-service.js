@@ -28,17 +28,55 @@ export function smsStatus() {
 
 const masked = number => number ? number.replace(/\d(?=\d{3})/g, "•") : "(no number set)";
 
-/** The text a caregiver receives. Short enough for one or two SMS segments. */
-export function composeAlertMessage({ headline, subjectName, said, location }) {
-  const where = location?.state === "left_safe_zone"
-    ? ` Location: outside the safe zone, ${location.distance_from_home ?? "distance unknown"} from home.` : "";
-  const quote = said ? ` They said: "${String(said).slice(0, 120)}".` : "";
-  // The exact position goes to the care team as a map link: they are the ones who need it.
+// What happened, in words a caregiver hears on the phone or reads on a lock screen.
+const SITUATION = Object.freeze({
+  distress_call: "has asked for help",
+  wandering_distress: "may be lost, outside their safe zone",
+  phone_call_dispatched: "has asked to speak to you",
+  call_requested: "has asked to speak to you",
+  prohibited_action: "asked for something the assistant is not allowed to do",
+  loop_detected: "is asking the same question again and again"
+});
+export const situationFor = (reason, headline) => SITUATION[reason] ?? `needs attention: ${headline ?? "an alert was raised"}`;
+
+// Her words without trailing punctuation, so the sentence around them can end once.
+const bare = said => String(said ?? "").trim().replace(/["“”]/g, "").replace(/[.!?,;:s]+$/, "");
+
+const isOutside = location => location?.state === "left_safe_zone";
+const miles = location => (Number(location?.distanceFromHomeMeters) / 1609.34).toFixed(1);
+const coordsOf = location => {
   const c = location?.coords;
-  const map = c && Number.isFinite(c.lat) && Number.isFinite(c.lng)
-    ? ` Map: https://maps.google.com/?q=${c.lat.toFixed(5)},${c.lng.toFixed(5)}` : "";
-  const place = location?.placeName ? ` Near ${location.placeName}.` : "";
-  return `AnchorCare alert for ${subjectName}: ${headline}.${quote}${where}${place}${map} Open the AnchorCare portal for details.`.slice(0, 400);
+  return c && Number.isFinite(c.lat) && Number.isFinite(c.lng) ? c : null;
+};
+
+/** Where she is, as one plain sentence. */
+export function locationSentence(location) {
+  if (!location?.state) return "Their location is not known.";
+  const near = location.placeName ? `, near ${location.placeName}` : "";
+  return isOutside(location)
+    ? `Their location shows them about ${miles(location)} miles from home${near}.`
+    : `Their location shows them at home${near}.`;
+}
+
+/** The text a caregiver receives: what happened, her words, when, where, and a map link. */
+export function composeAlertMessage({ headline, subjectName, said, location, reason = null, now = new Date(), timezone = "Europe/London" }) {
+  const when = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true }).format(now);
+  const quote = bare(said) ? ` They said: "${bare(said).slice(0, 120)}."` : "";
+  const c = coordsOf(location);
+  // The exact position goes to the care team as a map link: they are the ones who need it.
+  const map = c ? ` Map: https://maps.google.com/?q=${c.lat.toFixed(5)},${c.lng.toFixed(5)}` : "";
+  const what = reason ? situationFor(reason, headline) : headline;
+  return `AnchorCare alert (${when}): ${subjectName} ${what}.${quote} ${locationSentence(location)}${map}`.slice(0, 480);
+}
+
+/**
+ * What the caregiver hears when AnchorCare rings them: who, what happened, her own
+ * words, where she is, and that a text with the map is on its way.
+ */
+export function composeCallScript({ reason, headline, subjectName, said, location, textSent = false }) {
+  const words = bare(said) ? ` They said: ${bare(said).slice(0, 160)}.` : "";
+  return `This is an urgent call from AnchorCare. ${subjectName} ${situationFor(reason, headline)}.${words} ` +
+    `${locationSentence(location)}${textSent ? " A text message with their map location has been sent to this phone." : ""}`;
 }
 
 /**

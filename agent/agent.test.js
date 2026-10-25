@@ -678,12 +678,13 @@ test("distress: the reply only claims a call when a live call was really placed"
 });
 
 test("message: an alert becomes a short caregiver text naming what happened", () => {
-  const body = composeAlertMessage({ headline: "Distress: asked for help, care team called", subjectName: "Alex",
-    said: "I'm scared", location: { state: "left_safe_zone", distance_from_home: "0.25 miles" } });
-  assert.match(body, /^AnchorCare alert for Alex: Distress/);
-  assert.match(body, /They said: "I'm scared"/);
-  assert.match(body, /outside the safe zone, 0.25 miles from home/);
-  assert.ok(body.length <= 400);
+  const body = composeAlertMessage({ reason: "distress_call", headline: "Distress", subjectName: "Alex",
+    said: "I'm scared.", location: { state: "left_safe_zone", distanceFromHomeMeters: 400 },
+    now: new Date("2026-10-25T09:30:00Z"), timezone: "Europe/London" });
+  assert.match(body, /^AnchorCare alert \(9:30\s?am\): Alex has asked for help\./);
+  assert.match(body, /They said: "I'm scared\."/, "her words, punctuated once");
+  assert.match(body, /about 0\.2 miles from home/);
+  assert.ok(body.length <= 480);
 });
 
 test("message: without live SMS configured it is simulated, and nothing is sent", async () => {
@@ -967,4 +968,29 @@ test("speakers: a muted default output is flagged, and an audible alternative is
   assert.equal(s.allSilent, false, "the laptop speaker could still be used");
   assert.equal(summarise([{ name: "A", volume: 3, muted: false, isDefault: true }]).allSilent, true, "3% is effectively silent");
   assert.equal(summarise([]), null);
+});
+
+test("call script: the caregiver hears who, what happened, her words and where", async () => {
+  const { composeCallScript, locationSentence } = await import("./message-service.js");
+  const home = { state: "inside_safe_zone", distanceFromHomeMeters: 0 };
+  const script = composeCallScript({ reason: "distress_call", subjectName: "Alex Mercer",
+    said: "Help me, I have fallen and I cannot get up.", location: home, textSent: true });
+  assert.equal(script, "This is an urgent call from AnchorCare. Alex Mercer has asked for help. They said: Help me, I have fallen " +
+    "and I cannot get up. Their location shows them at home. A text message with their map location has been sent to this phone.");
+  assert.match(composeCallScript({ reason: "wandering_distress", subjectName: "Alex", location:
+    { state: "left_safe_zone", distanceFromHomeMeters: 1609, placeName: "Old Street" } }), /may be lost.*about 1\.0 miles from home, near Old Street\.$/);
+  assert.equal(locationSentence(null), "Their location is not known.");
+  assert.doesNotMatch(composeCallScript({ reason: "distress_call", subjectName: "Alex", location: home }), /text message/,
+    "no promise of a text when texts are not live");
+});
+
+test("call script: spoken text is escaped for Twilio's XML", async () => {
+  const saved = { ...process.env };
+  delete process.env.TWILIO_ACCOUNT_SID;               // simulation: nothing leaves the machine
+  try {
+    const { initiateCall, getCallStatus } = await import("./call-service.js");
+    await initiateCall({ script: "They said: <help> & \"now\"", subjectName: "Alex" });
+    assert.equal(getCallStatus().mode, "simulation");
+    assert.equal(getCallStatus().lastMessage, "They said: <help> & \"now\"", "the script is what is spoken");
+  } finally { Object.assign(process.env, saved); }
 });
