@@ -57,6 +57,16 @@ export function config() {
     geminiModel: process.env.AGENT_MODEL || process.env.GEMINI_MODEL || "gemini-4-argon",
     temperature: Number(process.env.AGENT_TEMPERATURE ?? 0.2),
 
+    // latency — see docs/LATENCY.md. "off" sends no thinking setting at all.
+    thinkingLevel: ["", "off"].includes(process.env.AGENT_THINKING_LEVEL ?? "low") ? null
+      : (process.env.AGENT_THINKING_LEVEL ?? "low"),
+    hedgeAfterMs: integer("AGENT_HEDGE_AFTER_MS", 3500, 500, 60000),
+    maxModelAttempts: integer("AGENT_MAX_MODEL_ATTEMPTS", 3, 1, 5),
+    transcriptionDeadlineMs: integer("AGENT_TRANSCRIPTION_DEADLINE_MS", 14000, 1000, 120000),
+    cognitionDeadlineMs: integer("AGENT_COGNITION_DEADLINE_MS", 12000, 1000, 120000),
+    // Answer a plain recall question straight from its one matching approved record.
+    fastRecall: process.env.AGENT_FAST_RECALL !== "false",
+
     // daemon
     host: process.env.AGENT_HOST || "127.0.0.1",
     port: integer("AGENT_PORT", 4319, 1, 65535),

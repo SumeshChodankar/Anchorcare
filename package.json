@@ -13,6 +13,7 @@
     "test": "tsx --test src/lib/caregiverEngine.test.ts src/lib/groundedAnswer.test.ts src/lib/historicalAnswer.test.tsx src/lib/atlasCompanion.test.tsx integration/engram.test.ts integration/ledger.test.ts integration/source-quotes.test.ts integration/question-routing.test.ts integration/conversation.test.ts integration/capability-hooks.test.ts integration/memory-tools.test.ts src/lib/speechInput.test.ts integration/medication.test.ts integration/conversation-audit.test.ts integration/gemini-manager.test.ts src/lib/companionJob.test.ts integration/image-memory.test.ts integration/mobile-link.test.ts integration/mobile-push.test.ts integration/care-role.test.ts integration/gemini-diagnostics.test.ts integration/companion-provider.test.ts integration/http-security.test.ts",
     "test:memory": "node --test engram-retrieval/test/*.test.js",
     "agent": "node agent/daemon.js",
+    "agent:kiosk": "node agent/kiosk.js",
     "agent:test": "node --test agent/agent.test.js",
     "schema:test": "node --test db/schema.test.js",
     "schema:audit-live": "node db/audit-live.js",

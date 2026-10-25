@@ -27,16 +27,20 @@ try { dns.setServers(["8.8.8.8", "1.1.1.1"]); } catch {}
 // closed, and the connection drains.
 
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { hostname } from "node:os";
+import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { config } from "./config.js";
 import { connect, AgentApprovalError } from "./store.js";
-import { createReasoner } from "./gemini.js";
+import { createReasoner, hedged, thinking } from "./gemini.js";
 import { createPipeline } from "./pipeline.js";
 import * as callService from "./call-service.js";
+import { composeAlertMessage, sendCaregiverMessage } from "./message-service.js";
 import { classifySpeaker } from "./speaker.js";
+import { SpokenLog, stripEcho } from "./echo.js";
+import { watchOutputs } from "./audio-output.js";
 import { buildConversationSession, recordHeardTurn, turnId, appendSeries } from "../db/ingest.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +68,37 @@ let lastLocationState = {
   at: new Date()
 };
 
+// ── place names (opt-in) ──────────────────────────────────────────────────
+// REVERSE_GEOCODE=osm turns coordinates into a street and area using OpenStreetMap's
+// Nominatim service. Off by default: it sends her coordinates to a third party, which
+// is a data-protection decision for the care team, not a default. One lookup per
+// ~100 m cell, cached, and never more than one request a second (Nominatim's policy).
+const placeCache = new Map();
+let lastGeocodeAt = 0;
+async function placeName({ lat, lng }) {
+  if (process.env.REVERSE_GEOCODE !== "osm" || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const cell = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  if (placeCache.has(cell)) return placeCache.get(cell);
+  if (Date.now() - lastGeocodeAt < 1100) return null;
+  lastGeocodeAt = Date.now();
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&lat=${lat}&lon=${lng}`, {
+      headers: { "User-Agent": "AnchorCare-prototype/0.1 (local demo)" }, signal: AbortSignal.timeout(4000)
+    });
+    const a = (await res.json()).address ?? {};
+    const name = [a.road, a.suburb || a.neighbourhood || a.quarter, a.city || a.town || a.village].filter(Boolean).join(", ") || null;
+    placeCache.set(cell, name);
+    return name;
+  } catch { return null; }
+}
+
+let subjectDisplayName = null;           // identity_core.preferredName, read at boot
+const subjectName = () => subjectDisplayName || cfg.subjectId;
+const answerWaiters = new Map();       // companion turn id → capture() waiting on it
+const spokenLog = new SpokenLog();      // what was said aloud, to recognise it coming back as echo
+const turnOrigin = new Map();           // patient turn id → the capture page that asked
+let micLogKey = "", micLogAt = 0;
+let audioOutput = null;                 // Windows speaker state watcher (agent/audio-output.js)       // de-duplicates /telemetry/mic log lines
 const sseClients = new Set();
 const recentFeed = [];
 
@@ -110,6 +145,27 @@ async function currentSession(now) {
 }
 
 // ── Gemini 4 Argon Audio Acoustic Ear & Diarization Engine ───────────────
+// Who is speaking is decided by VOICE, never by what is said: a visitor asking "what
+// is my name?" is not the patient because the question is personal. With an enrolled
+// reference clip the model compares voices; without one, nobody is "verified", and
+// spoken personal questions are not answered (see orientationAnswer in pipeline.js).
+//
+// This is a model's judgement, not biometric verification. A dedicated speaker-
+// verification engine (e.g. Picovoice Eagle, on-device) is the production answer.
+const ENROLL_DIR = join(HERE, "..", ".voice-enrollment");
+let enrollment = null;                  // { audio: Buffer, mimeType, seconds, enrolledAt }
+
+async function loadEnrollment() {
+  try {
+    const meta = JSON.parse(await readFile(join(ENROLL_DIR, `${cfg.subjectId}.json`), "utf8"));
+    const audio = await readFile(join(ENROLL_DIR, `${cfg.subjectId}.wav`));
+    enrollment = { ...meta, audio };
+  } catch { enrollment = null; }
+}
+const enrollmentInfo = () => enrollment
+  ? { enrolled: true, seconds: enrollment.seconds, enrolledAt: enrollment.enrolledAt }
+  : { enrolled: false };
+
 let genAiAudioClient = null;
 async function transcribeAndDiarizeAudio(audioBuffer, mimeType = "audio/webm", primarySpeaker = "Sumesh") {
   if (!genAiAudioClient) {
@@ -118,62 +174,66 @@ async function transcribeAndDiarizeAudio(audioBuffer, mimeType = "audio/webm", p
   }
 
   const cleanMime = (mimeType || "audio/webm").split(";")[0].trim();
-  const prompt = `You are the Acoustic Ear & Speaker Diarization Agent for AnchorCare, powered by Gemini 4 Argon.
-Household & Care Database Context:
-- Primary User: "${primarySpeaker}" (the user speaking directly into the microphone; representing the patient/user persona e.g. Sumesh or Margaret).
-- Caregiver & Clinician Profiles in Database Specs:
-  * Jane (Primary Caregiver): Checks on daily care, safety, comfort, routines.
-  * Sam (Care Assistant): Prepared meals, oatmeal and Earl Grey tea.
-  * David Lee (Physiotherapist): Conducted seated leg exercises in early evening.
-  * Priya (Daughter): Family contact.
-  * Dr. Patel (Clinical Physician): Medical oversight.
-- Others: Unknown visitors, background television, ambient chatter, or unverified speakers.
+  const reference = enrollment;
+  const prompt = `You are the Acoustic Ear for AnchorCare. Transcribe the NEW CLIP and say who is speaking.
 
-Tasks:
-1. Transcribe the audio verbatim. If only background static or silent, return empty string for transcription.
-2. Identify the speaker:
-   - If this is the primary user speaking into the device (asking personal memory questions, asking where glasses are, what they had for breakfast, asking about home, expressing distress, or talking directly), attribute speaker to "${primarySpeaker}".
-   - If the voice clearly matches a known caregiver or clinician in the database specs, attribute to "Jane (Caregiver)", "David Lee (Physiotherapist)", "Sam", or "Priya".
-   - If anyone else, background talk, or unverified voice, attribute to "Others".
-3. Check if the speech matches any approved memory specs in the database:
-   - "glasses" -> glasses on bookshelf by living-room window
-   - "breakfast" -> oatmeal and Earl Grey tea on Friday
-   - "david_lee" -> physiotherapist seated leg exercises in early evening
-   - "garden" -> 20-minute walk in courtyard garden
-   - "wandering" -> lost or looking for house outside safe zone
-   - "call_margaret" -> emergency outbound phone reassurance
-   - "medication" -> medication dose change policy veto
+RULES FOR WHO IS SPEAKING
+- Decide from the VOICE ONLY (pitch, timbre, accent, age, pace). NEVER from the words: a
+  personal question ("what is my name?", "where are my glasses?") says nothing about who asked it.
+${reference
+  ? `- The REFERENCE CLIP is the enrolled voice of the primary user, "${primarySpeaker}".
+  Compare the NEW CLIP's voice with it. sameVoiceAsReference is "yes" only if you are
+  confident it is the same person; "no" if it is clearly someone else; otherwise "unsure".
+- If the voice is not the reference voice, the speaker is "Others". There is no reference
+  recording for anyone else, so never name another person from the voice.`
+  : `- No reference voice is enrolled, so you cannot verify anyone. Use "${primarySpeaker}" for
+  a single close voice speaking to the device, "Others" for distant voices, several voices,
+  a TV or radio, and set sameVoiceAsReference to "unsure".`}
+- Background television, radio or chatter is always "Others".
+- A synthetic or computer voice (this assistant replying through a speaker) is always "Others".
 
 Return strictly valid JSON:
 {
-  "transcription": "<exact words spoken>",
-  "speaker": "${primarySpeaker}" | "Jane (Caregiver)" | "David Lee (Physiotherapist)" | "Others",
-  "speakerType": "primary_user" | "caregiver" | "visitor" | "others",
-  "confidence": 0.95,
-  "matchedDbTopic": "<matched topic or null>"
+  "transcription": "<exact words spoken in the NEW CLIP, or empty if silence>",
+  "speaker": "${primarySpeaker}" | "Others",
+  "speakerType": "primary_user" | "others",
+  "sameVoiceAsReference": "yes" | "no" | "unsure",
+  "confidence": <0..1, how sure you are about the speaker>,
+  "matchedDbTopic": "glasses" | "breakfast" | "david_lee" | "garden" | "wandering" | "call_margaret" | "medication" | null
 }`;
 
+  const contents = reference
+    ? ["REFERENCE CLIP (enrolled primary user):",
+       { inlineData: { mimeType: reference.mimeType, data: reference.audio.toString("base64") } },
+       "NEW CLIP:",
+       { inlineData: { mimeType: cleanMime, data: audioBuffer.toString("base64") } },
+       prompt]
+    : [{ inlineData: { mimeType: cleanMime, data: audioBuffer.toString("base64") } }, prompt];
+
   try {
-    const response = await genAiAudioClient.models.generateContent({
-      model: "gemini-4-argon",
-      contents: [
-        {
-          inlineData: {
-            mimeType: cleanMime,
-            data: audioBuffer.toString("base64")
-          }
-        },
-        prompt
-      ]
-    });
+    const response = await hedged(signal => genAiAudioClient.models.generateContent({
+      model: cfg.geminiModel,
+      contents,
+      config: { responseMimeType: "application/json", ...thinking(cfg), abortSignal: signal }
+    }), { hedgeAfterMs: cfg.hedgeAfterMs, deadlineMs: cfg.transcriptionDeadlineMs, maxAttempts: cfg.maxModelAttempts });
 
     const raw = response.text || "";
     const match = raw.match(/\{[\s\S]*\}/);
     if (match) {
-      return JSON.parse(match[0]);
+      const heard = JSON.parse(match[0]);
+      // With a reference enrolled, only a confident voice match is the primary user.
+      heard.verified = Boolean(reference) && heard.sameVoiceAsReference === "yes";
+      if (reference && heard.speakerType === "primary_user" && !heard.verified) {
+        heard.speakerType = "others";
+        heard.speaker = "Others";
+      }
+      return heard;
     }
   } catch (err) {
     log("gemini-audio-error", err.message);
+    // Not silence: someone spoke and was not heard, so the caller must say so.
+    return { transcription: "", failed: true, speaker: primarySpeaker, speakerType: "primary_user",
+             confidence: null, matchedDbTopic: null };
   }
 
   return {
@@ -185,10 +245,12 @@ Return strictly valid JSON:
   };
 }
 
+const NOT_HEARD = "Sorry, I didn't catch that. Could you say it again?";
+
 // ── capture ingest ────────────────────────────────────────────────────────
 // Writes words BEFORE anything else happens to them. If the model call, the
 // retrieval or the process itself dies next, the record of what she said survives.
-async function capture({ text, confidence, engine, language, speaker, speakerType, speakerMethod, locationContext }) {
+async function capture({ text, confidence, engine, language, speaker, speakerType, speakerMethod, verified, locationContext, clientId }) {
   if (locationContext && locationContext.state) {
     const meters = Number(locationContext.distanceFromHomeMeters ?? 0);
     const distanceMiles = (meters / 1609.34).toFixed(2);
@@ -209,7 +271,7 @@ async function capture({ text, confidence, engine, language, speaker, speakerTyp
 
   // Only her own words become patient turns; see agent/speaker.js.
   const { role, speaker: heard } = classifySpeaker({
-    speaker, speakerType, confidence, method: speakerMethod ?? "declared"
+    speaker, speakerType, confidence, method: speakerMethod ?? "declared", verified
   });
   const speakerName = heard.name ?? (role === "patient" ? "Patient" : "Unidentified");
   if (!role) {
@@ -256,27 +318,32 @@ async function capture({ text, confidence, engine, language, speaker, speakerTyp
     };
   }
 
-  // Prompt the pipeline loop immediately (0ms delay)
-  setImmediate(() => { tick().catch(() => {}); });
-
-  // Await companion turn so caller gets immediate voice-ready answer
+  // Hand this turn straight to the loop, and wait for its answer so the caller gets a
+  // voice-ready reply. The loop resolves the waiter the moment the answer exists; the
+  // database poll only covers an answer written by another worker.
   const expectedTurnId = turnId(id, seq + 1);
+  if (clientId) {
+    turnOrigin.set(turn._id, String(clientId).slice(0, 64));
+    if (turnOrigin.size > 200) turnOrigin.delete(turnOrigin.keys().next().value);
+  }
   const companionTurn = await new Promise(resolve => {
-    let elapsed = 0;
-    const interval = setInterval(async () => {
-      elapsed += 100;
+    let done = false;
+    const settle = doc => {
+      if (done) return;
+      done = true;
+      clearInterval(poll); clearTimeout(timer);
+      answerWaiters.delete(expectedTurnId);
+      resolve(doc);
+    };
+    answerWaiters.set(expectedTurnId, settle);
+    const poll = setInterval(async () => {
       try {
         const doc = await store.db.collection("conversation_turns").findOne({ _id: expectedTurnId });
-        if (doc && doc.text) {
-          clearInterval(interval);
-          resolve(doc);
-        }
-      } catch (e) {}
-      if (elapsed >= 22000) {
-        clearInterval(interval);
-        resolve(null);
-      }
-    }, 100);
+        if (doc?.text) settle(doc);
+      } catch {}
+    }, 1000);
+    const timer = setTimeout(() => settle(null), 22_000);
+    setImmediate(() => { tick(turn).catch(() => {}); });
   });
 
   return {
@@ -289,38 +356,63 @@ async function capture({ text, confidence, engine, language, speaker, speakerTyp
     companionTurnId: expectedTurnId,
     answer: companionTurn?.text || null,
     basis: companionTurn?.epistemic || null,
-    alertIds: companionTurn?.safety?.alertIds || []
+    alertIds: companionTurn?.safety?.alertIds || [],
+    alertReasons: companionTurn?.safety?.alertReasons || []
   };
 }
 
 // ── the loop ──────────────────────────────────────────────────────────────
-async function claimNext() {
+// A turn is answered by exactly one worker: unanswered is not enough, the worker must
+// also win the turn's lease. Outlives the model deadline, and a crashed worker's turn
+// becomes claimable again once it lapses.
+const ANSWER_LEASE_MS = 120_000;
+const WORKER_ID = `${hostname()}:${process.pid}`;
+
+async function firstClaimable(turns, claim) {
+  for (const turn of turns) {
+    const answered = await store.db.collection("conversation_turns")
+      .countDocuments({ _id: turnId(turn.sessionId, turn.seq + 1) }, { limit: 1 });
+    if (answered) continue;
+    if (!claim) return turn;
+    if (await store.claim(`answer:${turn._id}`, { owner: WORKER_ID, leaseMs: ANSWER_LEASE_MS })) return turn;
+  }
+  return null;
+}
+
+async function claimNext({ claim = true } = {}) {
   // If there is an active session, answer turns in THIS session first!
   if (sessionId) {
     const sessionPending = await store.db.collection("conversation_turns")
       .find({ ...scope, sessionId, role: "patient" }).sort({ seq: 1 }).limit(10).toArray();
-    for (const turn of sessionPending) {
-      const answered = await store.db.collection("conversation_turns")
-        .countDocuments({ _id: turnId(turn.sessionId, turn.seq + 1) }, { limit: 1 });
-      if (!answered) return turn;
-    }
+    const turn = await firstClaimable(sessionPending, claim);
+    if (turn) return turn;
   }
 
   // Otherwise, the latest unanswered patient turn
   const pending = await store.db.collection("conversation_turns")
     .find({ ...scope, role: "patient" }).sort({ startedAt: -1 }).limit(10).toArray();
-
-  for (const turn of pending) {
-    const answered = await store.db.collection("conversation_turns")
-      .countDocuments({ _id: turnId(turn.sessionId, turn.seq + 1) }, { limit: 1 });
-    if (!answered) return turn;
-  }
-  return null;
+  return firstClaimable(pending, claim);
 }
 
-async function tick() {
+/** capture() hands its turn in directly, which skips scanning for it. */
+async function claimPreferred(preferred) {
+  if (!preferred || DRY) return null;
+  return await store.claim(`answer:${preferred._id}`, { owner: WORKER_ID, leaseMs: ANSWER_LEASE_MS })
+    ? preferred : null;
+}
+
+async function tick(preferred = null) {
   if (stopping || inFlight) return;
-  const turn = await claimNext();
+  // Held across the claim's awaits: set only after them, a second tick (capture's
+  // immediate one and the interval's) could pass the check above and claim it too.
+  inFlight = "claiming";
+  let turn;
+  try {
+    turn = await claimPreferred(preferred)
+      ?? await claimNext({ claim: !DRY });     // a dry run must not lease turns away
+  } finally {
+    if (!turn || DRY) inFlight = null;
+  }
   if (!turn) {
     if (sessionId && Date.now() - lastActivity > cfg.idleSessionMinutes * 60_000) {
       await closeSession("idle_timeout");
@@ -339,17 +431,21 @@ async function tick() {
 
     log("answered",
       `${Date.now() - started}ms  basis=${result.care.epistemicBasis}  ` +
-      `cited=${result.care.evidenceIds.length}  "${result.care.answer.slice(0, 70)}…"`);
+      `cited=${result.care.evidenceIds.length}  model=${result.care.model.name}  "${result.care.answer.slice(0, 70)}…"`);
+    answerWaiters.get(result.companion._id)?.(result.companion);
+    spokenLog.add(result.care.answer);
 
     broadcast({
       type: "companion_answer",
       turnId: result.companion._id,
       patientTurnId: turn._id,
+      originClientId: turnOrigin.get(turn._id) ?? null,
       patientText: turn.text,
       answer: result.care.answer,
       basis: result.care.epistemicBasis,
       latencyMs: Date.now() - started,
       alertIds: result.alertIds,
+      alertReasons: result.alertReasons,
       wanderingDetected: result.care.wanderingDetected,
       escalationRequired: result.care.escalationRequired,
       at: new Date()
@@ -407,11 +503,68 @@ function httpServer() {
       return;
     }
 
+    // Voice enrolment: one reference clip of the primary user, kept on this machine only
+    // (.voice-enrollment/, git-ignored) and deletable from the capture page.
+    if (url.pathname === "/voice/enroll") {
+      if (cfg.captureToken && req.headers["x-agent-token"] !== cfg.captureToken) {
+        res.writeHead(401, { "content-type": "application/json" }).end(JSON.stringify({ error: "bad token" }));
+        return;
+      }
+      try {
+        if (req.method === "GET") {
+          res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(enrollmentInfo()));
+          return;
+        }
+        if (req.method === "DELETE") {
+          await rm(join(ENROLL_DIR, `${cfg.subjectId}.wav`), { force: true });
+          await rm(join(ENROLL_DIR, `${cfg.subjectId}.json`), { force: true });
+          enrollment = null;
+          log("voice-enroll", "removed");
+          res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(enrollmentInfo()));
+          return;
+        }
+        if (req.method === "POST") {
+          let body = "";
+          for await (const chunk of req) {
+            body += chunk;
+            if (body.length > 3_000_000) { res.writeHead(413).end(); return; }
+          }
+          const p = JSON.parse(body || "{}");
+          const audio = Buffer.from(String(p.audio || ""), "base64");
+          const seconds = Number(p.seconds);
+          if (audio.length < 1000 || !(seconds >= 3 && seconds <= 30)) {
+            res.writeHead(400, { "content-type": "application/json" })
+               .end(JSON.stringify({ error: "a 3–30 second clip of one voice is needed" }));
+            return;
+          }
+          const meta = { mimeType: p.mimeType === "audio/wav" ? "audio/wav" : "audio/webm", seconds, enrolledAt: new Date().toISOString() };
+          await mkdir(ENROLL_DIR, { recursive: true });
+          await writeFile(join(ENROLL_DIR, `${cfg.subjectId}.wav`), audio);
+          await writeFile(join(ENROLL_DIR, `${cfg.subjectId}.json`), JSON.stringify(meta));
+          enrollment = { ...meta, audio };
+          log("voice-enroll", `${seconds.toFixed(1)} s reference saved`);
+          res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(enrollmentInfo()));
+          return;
+        }
+        res.writeHead(405).end();
+      } catch (error) {
+        res.writeHead(500, { "content-type": "application/json" }).end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/capture/voice.js") {
+      const js = await readFile(join(HERE, "voice-capture.js"), "utf8");
+      res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" }).end(js);
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/status") {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
         subjectId: cfg.subjectId, sessionId, sessionSeq, stats,
         model: cfg.geminiModel, embeddingMode: cfg.embeddingMode, dryRun: DRY,
         location: lastLocationState,
+        audioOutput: audioOutput?.get() ?? null,
         latestFeed: recentFeed.slice(0, 10)
       }));
       return;
@@ -423,7 +576,7 @@ function httpServer() {
         "Cache-Control": "no-cache",
         "Connection": "keep-alive"
       });
-      res.write(`data: ${JSON.stringify({ type: "init", recent: recentFeed.slice(0, 30), location: lastLocationState, stats })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "init", recent: recentFeed.slice(0, 30), location: lastLocationState, stats, audioOutput: audioOutput?.get() ?? null })}\n\n`);
       sseClients.add(res);
       req.on("close", () => sseClients.delete(res));
       return;
@@ -451,9 +604,15 @@ function httpServer() {
       }
       try {
         const payload = JSON.parse(body || "{}");
-        let meters = Number(payload.distanceFromHomeMeters ?? payload.distanceMeters ?? 0);
-        if (meters === 0 && payload.latitude != null && payload.longitude != null) {
-          const homeLat = 51.5074, homeLng = -0.1278; // London center default
+        // The capture page measures distance from the home it calibrated; 0 means "at home",
+        // not "unknown". Only a sender that gives no distance at all is measured here, and
+        // only against a home configured in .env — never a made-up default, which once put
+        // a person sitting at home "2.35 miles away" and called her care team.
+        const given = payload.distanceFromHomeMeters ?? payload.distanceMeters;
+        let meters = Number(given ?? 0);
+        const homeLat = Number(process.env.HOME_LAT), homeLng = Number(process.env.HOME_LNG);
+        if (given == null && payload.latitude != null && payload.longitude != null
+            && Number.isFinite(homeLat) && Number.isFinite(homeLng) && process.env.HOME_LAT) {
           const R = 6371e3;
           const phi1 = homeLat * Math.PI / 180, phi2 = payload.latitude * Math.PI / 180;
           const dPhi = (payload.latitude - homeLat) * Math.PI / 180;
@@ -462,14 +621,21 @@ function httpServer() {
           meters = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
         const distanceMiles = (meters / 1609.34).toFixed(2);
-        const isOutside = payload.state === "left_safe_zone" || payload.state === "outside_safe_zone" || meters > 50;
+        // The capture page already judged inside/outside against the fix's accuracy; trust
+        // its state. Without one, apply the same rule here.
+        const isOutside = payload.state
+          ? ["left_safe_zone", "outside_safe_zone"].includes(payload.state)
+          : meters - (Number(payload.accuracy) || 0) > 50;
+        const coords = payload.latitude != null && payload.longitude != null
+          ? { lat: Number(payload.latitude), lng: Number(payload.longitude) } : null;
         lastLocationState = {
           state: isOutside ? "left_safe_zone" : "inside_safe_zone",
           distanceFromHomeMeters: meters,
           distance_from_home: `${distanceMiles} miles`,
           status_description: isOutside ? `Outside Safe Zone, ${distanceMiles} miles from Home` : "Inside Safe Zone (Home)",
-          coords: { lat: payload.latitude, lng: payload.longitude },
+          coords,
           accuracy: payload.accuracy ?? null,
+          placeName: coords ? await placeName(coords) : null,
           at: new Date(payload.timestamp || Date.now())
         };
         stats.telemetry++;
@@ -543,6 +709,7 @@ function httpServer() {
         const audioBase64 = payload.audio;
         const mimeType = payload.mimeType || "audio/webm";
         const locationContext = payload.locationContext;
+        const clientId = payload.clientId;
         const primarySpeaker = (payload.primarySpeaker || payload.userName || "Sumesh").trim();
 
         if (!audioBase64) {
@@ -554,7 +721,27 @@ function httpServer() {
         const diarization = await transcribeAndDiarizeAudio(audioBuf, mimeType, primarySpeaker);
         log("acoustic-ear", `[${diarization.speaker}] (${diarization.confidence}) "${diarization.transcription}"`);
 
-        const trimmed = (diarization.transcription || "").trim();
+        let trimmed = (diarization.transcription || "").trim();
+        const echo = stripEcho(trimmed, spokenLog.recent());
+        if (echo.removed) {
+          log("echo", `removed ${echo.removed} word(s) of the agent's own reply${echo.echoOnly ? ": whole clip was echo, dropped" : `, kept "${echo.text.slice(0, 60)}"`}`);
+          if (echo.echoOnly) {
+            res.writeHead(200, { "content-type": "application/json" })
+               .end(JSON.stringify({ ignored: "echo", speaker: diarization.speaker, speakerType: diarization.speakerType }));
+            return;
+          }
+          trimmed = echo.text;
+        }
+        if (diarization.failed) {
+          res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
+            ignored: "transcription_unavailable",
+            answer: NOT_HEARD,
+            companionTurnId: `not_heard_${Date.now()}`,
+            speaker: diarization.speaker,
+            speakerType: diarization.speakerType
+          }));
+          return;
+        }
         if (!trimmed || trimmed.length < 2) {
           res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
             ignored: "silence",
@@ -566,10 +753,12 @@ function httpServer() {
 
         const captureResult = await capture({
           text: trimmed,
+          clientId,
           engine: "gemini-4-argon-audio",
           speaker: diarization.speaker,
           speakerType: diarization.speakerType,
           speakerMethod: "diarization",
+          verified: diarization.verified === true,
           confidence: diarization.confidence,
           locationContext
         });
@@ -591,6 +780,7 @@ function httpServer() {
 
     if (req.method === "GET" && url.pathname === "/tts") {
       const text = (url.searchParams.get("text") || "").trim();
+      spokenLog.add(text);
       if (!text) { res.writeHead(400).end("Missing text"); return; }
       try {
         const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
@@ -609,6 +799,7 @@ function httpServer() {
         }
         if (!buffers.length) throw new Error("No audio generated");
         const combined = Buffer.concat(buffers);
+        log("tts", `${buffers.length}/${sentences.length} sentence(s), ${combined.length} bytes  "${text.slice(0, 50)}"`);
         res.writeHead(200, {
           "Content-Type": "audio/mpeg",
           "Content-Length": combined.length,
@@ -621,6 +812,54 @@ function httpServer() {
         log("tts-failed", err.message);
         res.writeHead(500, { "Content-Type": "application/json" }).end(JSON.stringify({ error: err.message }));
       }
+      return;
+    }
+
+    // Mic health from the capture page, logged when something changes or every 30 s.
+    if (req.method === "POST" && url.pathname === "/telemetry/mic") {
+      let body = "";
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 4_000) { res.writeHead(413).end(); return; }
+      }
+      try {
+        const m = JSON.parse(body || "{}");
+        const db = v => Number.isFinite(v) ? `${Math.round(v)}` : "?";
+        const line = `peak ${db(m.peakDb)} dBFS · room ${db(m.floorDb)} · trigger ${db(m.thresholdDb)} · ` +
+          `${m.active ? (m.aiSpeaking ? "muted (AI talking)" : m.speaking ? "hearing speech" : "listening") : "mic OFF"}` +
+          `${m.enrolling ? " · waiting for enrolment sentence" : ""} · ${m.utterances} utterance(s)` +
+          `${m.event ? ` · ${m.event}${Number.isFinite(m.seconds) ? ` ${m.seconds.toFixed(1)} s` : ""}` : ""}` +
+          `${m.track ? ` · mic "${String(m.track).slice(0, 50)}"` : ""}`;
+        const key = line.replace(/peak -?\d+|room -?\d+|trigger -?\d+/g, "");
+        if (m.event || key !== micLogKey || Date.now() - micLogAt > 30_000 || m.peakDb > m.thresholdDb) {
+          log("mic", line);
+          micLogKey = key;
+          micLogAt = Date.now();
+        }
+      } catch {}
+      res.writeHead(204).end();
+      return;
+    }
+
+    // The capture page reports what happened to each spoken reply, so a silent speaker
+    // can be told apart from a reply that never played.
+    if (req.method === "POST" && url.pathname === "/telemetry/playback") {
+      let body = "";
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 4_000) { res.writeHead(413).end(); return; }
+      }
+      try {
+        const p = JSON.parse(body || "{}");
+        const num = v => Number.isFinite(v) ? `${v.toFixed(1)}s` : "";
+        if (p.phase === "started" && Number.isFinite(p.seconds)) {
+          broadcast({ type: "speaking", until: Date.now() + Math.round(p.seconds * 1000) + 600 });
+        }
+        log("playback", [p.engine, p.phase, num(p.seconds), p.playedSeconds != null ? `played ${num(p.playedSeconds)}` : "",
+                         `ctx=${p.ctx}`, `speaker="${String(p.speaker ?? "").slice(0, 60)}"`,
+                         p.error ? `error="${String(p.error).slice(0, 120)}"` : ""].filter(Boolean).join("  "));
+      } catch {}
+      res.writeHead(204).end();
       return;
     }
 
@@ -694,6 +933,11 @@ try {
   if (!consent) {
     log("warning", `no consent record for ${cfg.subjectId} — see npm run schema:seed-consent`);
   }
+  await loadEnrollment();
+  log("voice", enrollment ? `enrolled reference voice: ${enrollment.seconds.toFixed(1)} s` : "no voice enrolled: spoken personal questions will not be answered");
+  const identity = await store.db.collection("identity_core")
+    .findOne({ _id: cfg.subjectId }, { projection: { preferredName: 1 } });
+  subjectDisplayName = identity?.preferredName ?? null;
   const approved = await store.db.collection("episodes")
     .countDocuments({ ...scope, reviewStatus: "approved", isCurrent: true });
   log("ready", `${approved} approved episode(s) retrievable`);
@@ -704,12 +948,27 @@ try {
     store,
     reason: createReasoner(cfg),
     log,
-    onCall: turn => {
+    onCall: (turn, reason) => {
       callService.initiateCall({
-        reason: turn.text,
+        reason: `${reason}: ${turn.text}`,
         anonymous: true,
-        broadcast
+        broadcast,
+        subjectName: subjectName()
       });
+    },
+    // Every alert texts the care team on its own (simulated until live SMS is set up),
+    // and the outcome is written onto the alert so the caregiver view shows it.
+    onAlert: ({ alert, reason, headline, turn, locationContext }) => {
+      const body = composeAlertMessage({
+        headline, subjectName: subjectName(), said: turn.text, location: locationContext
+      });
+      sendCaregiverMessage({ body, reason }).then(async sent => {
+        log("message", `${sent.mode} ${sent.status} → ${sent.to}  "${body.slice(0, 70)}…"${sent.note ? `  (${sent.note})` : ""}`);
+        broadcast({ type: "caregiver_message", alertId: alert._id, ...sent });
+        if (sent.status !== "skipped_cooldown") {
+          await store.safeUpdate("care_alerts", { _id: alert._id, ...scope }, { $push: { notifications: sent } });
+        }
+      }).catch(error => log("message-failed", error.message));
     }
   });
 
@@ -729,10 +988,19 @@ try {
         recentFeed.unshift({ type: t.role === "patient" ? "patient_turn" : "heard_turn", turnId: t._id,
                              role: t.role, text: t.text, speaker: t.speaker?.name ?? null, at: t.startedAt });
       } else if (t.role === "companion") {
-        recentFeed.unshift({ type: "companion_answer", turnId: t._id, answer: t.text, basis: t.epistemic, alertIds: t.safety?.alertIds ?? [], at: t.startedAt });
+        recentFeed.unshift({ type: "companion_answer", turnId: t._id, answer: t.text, basis: t.epistemic, alertIds: t.safety?.alertIds ?? [], alertReasons: t.safety?.alertReasons ?? [], at: t.startedAt });
       }
     }
   } catch {}
+
+  // Windows speaker mute/volume, so the capture page can say when replies are inaudible.
+  audioOutput = watchOutputs(state => {
+    if (!state) return;
+    const d = state.default;
+    log("speakers", state.outputs.map(o => `${o.isDefault ? "*" : ""}${o.name}: ${o.muted ? "MUTED" : `${o.volume}%`}`).join(" · ")
+      + (state.allSilent ? "  <- replies cannot be heard" : d?.silent ? "  <- default output is silent" : ""));
+    broadcast({ type: "audio_output", ...state });
+  });
 
   server = httpServer();
   await new Promise(resolve => server.listen(cfg.port, cfg.host, resolve));

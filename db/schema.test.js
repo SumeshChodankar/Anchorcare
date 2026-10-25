@@ -634,6 +634,7 @@ test("capture: a speech turn's text is a derived source needing inspection", () 
     audio: { storage: "s3", ref: "s3://turns/ws1-4.opus", durationMs: 2100 }
   }, now);
   assert.equal(source.inspection.required, true, "the recogniser may have misheard her");
+  assert.equal(source.content, "Is Sarah coming today?", "her words survive with audio retention off");
   assert.equal(source.processor.name, "whisper");
   assert.equal(turn.transcript.confidence, 0.91, "the engine's own number, uncalibrated");
   assert.equal(turn.audio.storage, "s3", "audio is a pointer, never inline");
@@ -648,7 +649,7 @@ test("capture: a caregiver turn is observed but never her words", () => {
   assert.equal(turn.epistemic, "observed", "we did hear it");
   assert.equal(source, null, "a caregiver's remark is not a user_report source");
   assert.equal(turn.sourceId, null, "so it cannot be cited as her evidence");
-  assert.deepEqual(turn.speaker, { name: "Jane (Caregiver)", kind: "caregiver", method: "diarization", confidence: 0.8 });
+  assert.deepEqual(turn.speaker, { name: "Jane (Caregiver)", kind: "caregiver", method: "diarization", confidence: 0.8, verified: null });
   const view = views.find(v => v.name === PATIENT_UTTERANCE_VIEW).pipeline[0].$match;
   assert.notEqual(turn.role, view.role, "excluded from patient_utterances");
   assert.notEqual(turn.role, PATIENT_ONLY.role, "excluded from the companion's read path");
@@ -659,7 +660,7 @@ test("capture: a patient turn keeps the speaker label it was captured with", () 
     sessionId: "ws1", seq: 2, text: "Where are my glasses?",
     speaker: { name: "Margaret", kind: "patient", method: "declared" }
   }, now);
-  assert.deepEqual(turn.speaker, { name: "Margaret", kind: "patient", method: "declared", confidence: null });
+  assert.deepEqual(turn.speaker, { name: "Margaret", kind: "patient", method: "declared", confidence: null, verified: null });
   assert.equal(buildPatientTurn(scope, { sessionId: "ws1", seq: 3, text: "hi" }, now).turn.speaker, null);
 });
 

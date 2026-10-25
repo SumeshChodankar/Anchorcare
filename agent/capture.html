@@ -430,6 +430,9 @@
       <span style="font-size: 15px;">👤</span>
       <span style="font-size: 12px; font-weight: 700; color: #f8fafc;">Primary Voice / Speaker Name:</span>
       <input type="text" id="primarySpeakerInput" value="Sumesh" style="background: rgba(15,23,42,0.8); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: #38bdf8; font-weight: 600; font-size: 12px; width: 110px;" />
+      <button type="button" class="btn-icon" id="enrollVoiceBtn" style="font-size: 11px; padding: 3px 8px;">🎙️ Enrol my voice</button>
+      <span id="enrollStatus" style="font-size: 11px; color: var(--quiet);">Voice not enrolled: spoken personal questions are not answered</span>
+      <button type="button" class="btn-icon" id="enrollRemoveBtn" style="font-size: 11px; padding: 3px 8px; display: none;">Remove</button>
     </div>
     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
       <span style="font-size: 11px; color: var(--quiet);">Simulate / Match Voice:</span>
@@ -526,6 +529,13 @@
         <span id="vadStatus">Status: Silent</span>
         <span id="statsLabel">0 speech | 0 gps</span>
       </div>
+      <div style="display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--quiet);">
+        <label for="speakerSelect">🔊 Speaker</label>
+        <select id="speakerSelect" style="flex: 1; min-width: 0; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px; color: #f8fafc; font-size: 11.5px;">
+          <option value="">System default</option>
+        </select>
+        <button type="button" class="btn-icon" id="speakerTestBtn" style="font-size: 11px; padding: 3px 8px;">Test</button>
+      </div>
     </div>
   </div>
 
@@ -605,7 +615,7 @@
   </form>
 
   <footer>
-    Microphone captures speech into a rolling 30s buffer. 50m geofencing detects safe zone crossings.<br>
+    Always listening: speech is detected by its loudness (dBFS) against the room's own noise floor, no button needed. 50m geofencing detects safe zone crossings.<br>
     Hard schema guardrails: Empirical logs in Atlas, epistemic status preserved, inferences quarantined.
   </footer>
 </main>
@@ -674,14 +684,33 @@
   let handsFreeEnabled = true; // Auto-listen after answering
   let micMode = "continuous"; // Default to 24/7 continuous ambient listening
   let aiSpeaking = false;
+  let resumeListeningAt = 0;   // mic input ignored until then, after the AI stops talking
+  // This tab's id. Only the tab that asked speaks the answer: several tabs talking out
+  // of step is how the agent ended up hearing, and answering, its own voice.
+  const CLIENT_ID = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
+  const ownPending = new Map();    // patient turn id → our answer that arrived before our HTTP reply
+  const httpReturned = new Set();  // patient turn ids whose HTTP reply has come back
   let speechSent = 0;
   let gpsSent = 0;
   let lastCompanionAnswer = "";
   let naturalVoice = null;
   let audioContext = null;
 
-  // Home Coords (defaults to London center)
+  // Home: where the first GPS fix was taken, unless calibrated or saved earlier. A fixed
+  // default would put everyone not standing in central London permanently "outside",
+  // and every answer would raise a wandering alert.
+  const HOME_KEY = "anchorcare.home";
   let home = { lat: 51.5074, lng: -0.1278, radiusMeters: 50 };
+  let homeKnown = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem(HOME_KEY) || "null");
+    if (saved && Number.isFinite(saved.lat) && Number.isFinite(saved.lng)) { home = { ...home, ...saved }; homeKnown = true; }
+  } catch {}
+  function setHome(lat, lng) {
+    home = { ...home, lat, lng };
+    homeKnown = true;
+    try { localStorage.setItem(HOME_KEY, JSON.stringify({ lat, lng })); } catch {}
+  }
   let currentGeo = { ...home, state: "inside_safe_zone", distanceFromHomeMeters: 0 };
   let lastReportTime = 0;
 
@@ -779,6 +808,114 @@
   window.addEventListener("keydown", unlockAudio);
   window.addEventListener("touchstart", unlockAudio);
 
+  // ── Speaker routing & playback reports ───────────────────────────────────
+  // A Bluetooth headset appears twice on Windows: "Headphones" (stereo) and "Headset"
+  // (hands-free). Once its mic is open, sound sent to "Headphones" — the default — is
+  // silent. So replies go to the output on the same physical device as the mic, unless
+  // the person picked a speaker themselves. Every playback is reported to the daemon
+  // log, because "it was played" and "it was heard" are different things.
+  const speakerSelect = document.getElementById("speakerSelect");
+  const speakerTestBtn = document.getElementById("speakerTestBtn");
+  const SPEAKER_KEY = "anchorcare.speaker";
+  let speakerChosen = false, speakerId = "";
+  try {
+    const saved = localStorage.getItem(SPEAKER_KEY);
+    if (saved !== null) { speakerChosen = true; speakerId = saved; }
+  } catch {}
+
+  function reportPlayback(event) {
+    fetch("/telemetry/playback", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...event, speaker: speakerSelect.selectedOptions[0]?.textContent || "System default",
+                             ctx: audioContext ? audioContext.state : "none" })
+    }).catch(() => {});
+  }
+
+  /** The output that belongs to the open mic's device, if the mic is a headset. */
+  function pairedOutput(outputs) {
+    const track = mediaStream && mediaStream.getAudioTracks()[0];
+    if (!track) return "";
+    const group = track.getSettings().groupId;
+    const handsFree = /hands-?free|headset/i.test(track.label);
+    const sameDevice = outputs.filter(o => group && o.groupId === group);
+    const pick = sameDevice.find(o => handsFree && /hands-?free|headset/i.test(o.label)) || sameDevice[0];
+    if (pick) return pick.deviceId;
+    return handsFree && outputs.some(o => o.deviceId === "communications") ? "communications" : "";
+  }
+
+  async function applySpeaker() {
+    const ctx = getAudioContext();
+    if (typeof ctx.setSinkId !== "function") return;
+    try { await ctx.setSinkId(speakerId); }
+    catch (e) { reportPlayback({ phase: "speaker_error", error: e.message }); }
+  }
+
+  async function refreshSpeakers() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audiooutput" && d.deviceId !== "default");
+    if (!speakerChosen) speakerId = pairedOutput(outputs);
+    speakerSelect.innerHTML = "";
+    speakerSelect.append(new Option("System default", ""), ...outputs.map(o =>
+      new Option(o.deviceId === "communications" ? "Windows communications device" : (o.label || "Speaker"), o.deviceId)));
+    speakerSelect.value = outputs.some(o => o.deviceId === speakerId) ? speakerId : "";
+    speakerId = speakerSelect.value;
+    await applySpeaker();
+  }
+
+  speakerSelect.addEventListener("change", async () => {
+    speakerId = speakerSelect.value;
+    speakerChosen = true;
+    try { localStorage.setItem(SPEAKER_KEY, speakerId); } catch {}
+    await applySpeaker();
+    speak("I will use this speaker for my answers.");
+  });
+  speakerTestBtn.addEventListener("click", () => { unlockAudio(); speak("Testing. Can you hear me clearly?"); });
+
+  // ── Windows speaker warning ──────────────────────────────────────────────
+  // The page cannot see the system mute switch: it can play every reply to the end
+  // into a muted speaker. The daemon reads Windows and reports it here.
+  let speakerState = null;
+  let speakerWarning = null;
+
+  function playbackOutput(state) {
+    if (!state || !state.outputs) return null;
+    const label = speakerSelect.selectedOptions[0]?.textContent;
+    return (label && label !== "System default" && state.outputs.find(o => o.name === label)) || state.default;
+  }
+
+  const esc = text => String(text).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
+  function renderSpeakerWarning() {
+    const out = playbackOutput(speakerState);
+    if (!out || !out.silent) {
+      if (speakerWarning) speakerWarning.remove();
+      speakerWarning = null;
+      return;
+    }
+    if (!speakerWarning) {
+      speakerWarning = document.createElement("div");
+      speakerWarning.setAttribute("role", "alert");
+      speakerWarning.style.cssText = "position:sticky;top:0;z-index:60;margin:0 0 12px;padding:14px 16px;border-radius:10px;" +
+        "background:#7f1d1d;border:2px solid #f87171;color:#fff;font:600 15px/1.45 system-ui;";
+      document.body.prepend(speakerWarning);
+    }
+    const audible = speakerState.outputs.find(o => !o.silent && o.name !== out.name);
+    const problem = out.muted
+      ? `🔇 Windows has <b>${esc(out.name)}</b> muted. Replies are being played, but you can't hear them.`
+      : `🔈 Windows volume for <b>${esc(out.name)}</b> is ${out.volume}%: too quiet to hear the replies.`;
+    const fix = out.muted ? "Click the 🔊 icon on the taskbar and unmute it" : "Turn the volume up from the 🔊 icon on the taskbar";
+    const other = audible ? ` Or choose <b>${esc(audible.name)}</b> (${audible.volume}%, not muted) under 🔊 Speaker on this page.` : "";
+    speakerWarning.innerHTML = `${problem}<br><span style="font-weight:500">${fix}.${other}</span>`;
+  }
+
+  function onSpeakerState(state) {
+    speakerState = state && state.outputs ? state : null;
+    renderSpeakerWarning();
+  }
+  speakerSelect.addEventListener("change", renderSpeakerWarning);
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", () => { refreshSpeakers().catch(() => {}); });
+  }
+
   // ── Spectrum Bars Generation ─────────────────────────────────────────────
   const NUM_BARS = 20;
   const bars = [];
@@ -794,8 +931,14 @@
   }
 
   // ── High-Reliability Audio Voice Player (Web Audio API + HTML5 Audio + Web Speech) ──
+  let mutedNoticeShown = false;
   async function speak(text) {
-    if (!ttsEnabled || !text) return;
+    if (!text) return;
+    if (!ttsEnabled) {
+      if (!mutedNoticeShown) addTimelineItem("system", "🔇 AI Voice is muted, so answers are shown as text only. Click \"AI Voice\" to hear them.");
+      mutedNoticeShown = true;
+      return;
+    }
     const cleanText = text.replace(/[*_#]/g, "").trim();
     if (!cleanText) return;
 
@@ -816,6 +959,7 @@
 
     const onFinish = () => {
       aiSpeaking = false;
+      resumeListeningAt = Date.now() + 400;   // let the speaker's tail die away first
       activeBufferSource = null;
       activeAudioElement = null;
       companionDot.className = "dot live";
@@ -846,21 +990,35 @@
       source.connect(ctx.destination);
 
       activeBufferSource = source;
-      source.onended = onFinish;
+      const startedAt = performance.now();
+      source.onended = () => {
+        reportPlayback({ phase: "ended", engine: "webaudio", seconds: audioBuffer.duration,
+                         playedSeconds: (performance.now() - startedAt) / 1000 });
+        onFinish();
+      };
       source.start(0);
+      reportPlayback({ phase: "started", engine: "webaudio", seconds: audioBuffer.duration });
+      const silentOut = typeof playbackOutput === "function" ? playbackOutput(speakerState) : null;
+      companionStateLabel.textContent = silentOut && silentOut.silent
+        ? `🔇 Playing (${audioBuffer.duration.toFixed(1)} s), but Windows has ${silentOut.name} ${silentOut.muted ? "muted" : "almost silent"}`
+        : `🔊 Speaking aloud (${audioBuffer.duration.toFixed(1)} s)…`;
       return;
     } catch (err) {
       console.warn("Web Audio engine notice, attempting HTML5 Audio fallback:", err);
+      reportPlayback({ phase: "failed", engine: "webaudio", error: err.message || err.name });
+      addTimelineItem("system", `🔈 Voice engine 1 failed (${err.message || err.name}); trying the next one.`);
     }
 
     // 2. Secondary Engine: HTML5 Audio
     try {
       const audio = new Audio("/tts?text=" + encodeURIComponent(cleanText.slice(0, 450)));
       activeAudioElement = audio;
-      audio.onended = onFinish;
-      audio.onerror = () => fallbackSpeechSynthesis(cleanText, onFinish);
+      if (speakerId && audio.setSinkId) audio.setSinkId(speakerId).catch(() => {});
+      audio.onended = () => { reportPlayback({ phase: "ended", engine: "html5" }); onFinish(); };
+      audio.onerror = () => { reportPlayback({ phase: "failed", engine: "html5", error: "media error" }); fallbackSpeechSynthesis(cleanText, onFinish); };
       const p = audio.play();
-      if (p) p.catch(() => fallbackSpeechSynthesis(cleanText, onFinish));
+      if (p) p.then(() => reportPlayback({ phase: "started", engine: "html5" }),
+                    e => { reportPlayback({ phase: "failed", engine: "html5", error: e.message }); fallbackSpeechSynthesis(cleanText, onFinish); });
       return;
     } catch (e) {
       fallbackSpeechSynthesis(cleanText, onFinish);
@@ -878,17 +1036,22 @@
       if (naturalVoice) utter.voice = naturalVoice;
       utter.lang = "en-GB";
       utter.rate = 1.0;
+      utter.onstart = () => reportPlayback({ phase: "started", engine: "browser-voice" });
       utter.onend = () => {
+        reportPlayback({ phase: "ended", engine: "browser-voice" });
         window._activeSpeechUtterance = null;
         if (onFinish) onFinish();
       };
       utter.onerror = (e) => {
         console.warn("SpeechSynthesis notice:", e);
+        addTimelineItem("system", `🔇 Could not speak this answer aloud (${e.error || "speech error"}). It is shown as text.`);
         window._activeSpeechUtterance = null;
         if (onFinish) onFinish();
       };
       window.speechSynthesis.speak(utter);
+      companionStateLabel.textContent = "🔊 Speaking aloud (browser voice)…";
     } catch (e) {
+      addTimelineItem("system", `🔇 Could not speak this answer aloud (${e.message || e.name}). It is shown as text.`);
       if (onFinish) onFinish();
     }
   }
@@ -974,7 +1137,7 @@
   }
 
   const answeredTurns = new Set();
-  function handleCompanionAnswer(answer, meta = {}) {
+  function handleCompanionAnswer(answer, meta = {}, { silent = false } = {}) {
     if (!answer) return;
     const key = meta.companionTurnId || meta.turnId || (meta.patientTurnId ? meta.patientTurnId + "_ans" : null) || answer;
     if (key && answeredTurns.has(key)) return;
@@ -994,20 +1157,45 @@
     }
 
     addTimelineItem("companion", answer);
-    playChime("answer");
-    speak(answer);
-
-    if (meta.wanderingDetected || meta.escalationRequired || (meta.alertIds && meta.alertIds.length)) {
-      triggerAlert(meta.alertIds?.[0] || "alert_active", currentGeo.distanceFromHomeMeters);
+    if (!silent) {
+      playChime("answer");
+      speak(answer);
     }
+
+    // The daemon decides whether an alert was raised and why; the page only reports it.
+    if (meta.alertIds && meta.alertIds.length) triggerAlert(meta);
   }
 
-  function triggerAlert(alertId, meters) {
-    const miles = (meters / 1609.34).toFixed(2);
+  /**
+   * Our own question's answer, shown after the question. The live stream often brings
+   * the answer first; it is held until the HTTP reply (which carries the transcript)
+   * has drawn the question, or used if that reply came back without an answer.
+   */
+  function deliverOwnAnswer(data) {
+    if (!data) return;
+    if (data.turnId) httpReturned.add(data.turnId);
+    if (data.answer) handleCompanionAnswer(data.answer, data);
+    else if (ownPending.has(data.turnId)) handleCompanionAnswer(ownPending.get(data.turnId).answer, ownPending.get(data.turnId));
+    ownPending.delete(data.turnId);
+  }
+
+  /** An answer from before this page opened: shown, but not spoken and not re-alerted. */
+  function showReplayedAnswer(item) {
+    if (item.turnId) answeredTurns.add(item.turnId);
+    addTimelineItem("companion", item.answer);
+  }
+
+  function triggerAlert(meta) {
+    const reasons = meta.alertReasons && meta.alertReasons.length ? meta.alertReasons : ["Caregiver alert raised"];
+    const alertId = meta.alertIds?.[0] || "alert_active";
+    const wandering = reasons.some(r => /wandering/i.test(r));
+    const miles = ((currentGeo.distanceFromHomeMeters || 0) / 1609.34).toFixed(2);
     alertBanner.className = "alert-banner active";
-    alertDesc.textContent = `Wandering & disorientation detected outside safe boundary (${miles} miles from home). Primary caregiver (Jane) notified.`;
+    alertDesc.textContent = wandering
+      ? `Wandering & disorientation detected outside safe boundary (${miles} miles from home). Primary caregiver (Jane) notified.`
+      : `${reasons.join(" · ")}. Primary caregiver (Jane) notified.`;
     document.getElementById("alertMeta").textContent = `Alert ID: ${alertId} · SLA: 30 minutes · Task: Active Escalation Staged`;
-    addTimelineItem("system", `🚨 URGENT CAREGIVER ALERT: Patient wandering detected (${miles} mi). Jane notified with 30m SLA.`);
+    addTimelineItem("system", `🚨 CAREGIVER ALERT: ${reasons.join(" · ")}${wandering ? ` (${miles} mi from home)` : ""}. Jane notified.`);
   }
 
   // ── GPS Geofence & Haversine ─────────────────────────────────────────────
@@ -1038,7 +1226,9 @@
 
   function handlePosition(lat, lng, accuracy = 10) {
     const dist = haversineMeters(lat, lng, home.lat, home.lng);
-    const isOutside = dist > home.radiusMeters;
+    // Outside only when outside even allowing for the fix's own error: laptop Wi-Fi
+    // positioning is often ±300 m, and a 50 m zone would otherwise flip on noise alone.
+    const isOutside = dist - (Number(accuracy) || 0) > home.radiusMeters;
     const newState = isOutside ? "left_safe_zone" : "inside_safe_zone";
     const now = Date.now();
     const crossed = newState !== currentGeo.state;
@@ -1079,8 +1269,7 @@
   setHomeBtn.addEventListener("click", () => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(pos => {
-        home.lat = pos.coords.latitude;
-        home.lng = pos.coords.longitude;
+        setHome(pos.coords.latitude, pos.coords.longitude);
         handlePosition(home.lat, home.lng, pos.coords.accuracy);
         addTimelineItem("system", "Calibrated Home coordinates to current GPS position.");
       });
@@ -1089,7 +1278,13 @@
 
   if ("geolocation" in navigator) {
     navigator.geolocation.watchPosition(
-      pos => handlePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+      pos => {
+        if (!homeKnown) {
+          setHome(pos.coords.latitude, pos.coords.longitude);
+          addTimelineItem("system", "🏡 Home set to this device's current location. Use \"Calibrate Home\" to change it.");
+        }
+        handlePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      },
       err => { geoDesc.textContent = "Hardware GPS unavailable. Using simulator."; },
       { enableHighAccuracy: true, maximumAge: 20000, timeout: 15000 }
     );
@@ -1118,6 +1313,7 @@
         body: JSON.stringify({
           text: trimmed,
           speaker: currentSpeaker,
+          clientId: CLIENT_ID,
           engine: micMode === "ptt" ? "push-to-talk" : "vad-ambient",
           locationContext: currentGeo
         })
@@ -1127,9 +1323,7 @@
       updateStats();
 
       const data = await res.json();
-      if (data && data.answer) {
-        handleCompanionAnswer(data.answer, data);
-      }
+      deliverOwnAnswer(data);
     } catch (err) {
       addTimelineItem("system", "Speech delivery error: " + err.message);
       companionBubble.className = "companion-bubble";
@@ -1175,10 +1369,6 @@
   // ── Hardware Audio Ingestion & Gemini 4 Argon Acoustic Ear Pipeline ──────
   let audioCtx = null, analyser = null;
   let mediaStream = null;
-  let mediaRecorder = null;
-  let audioChunks = [];
-  let isVADSpeaking = false;
-  let vadSilenceTimer = null;
   let lastAudioSubmitTime = 0;
   let isHardwareMicActive = false;
   let manualRecording = false;
@@ -1235,7 +1425,7 @@
   async function submitRecordedAudio(blob) {
     if (!blob || blob.size < 800) return;
     const now = Date.now();
-    if (now - lastAudioSubmitTime < 1800) return;
+    if (now - lastAudioSubmitTime < 500) return;
     lastAudioSubmitTime = now;
 
     unlockAudio();
@@ -1262,6 +1452,7 @@
             audio: base64Audio,
             mimeType: blob.type || "audio/webm",
             primarySpeaker,
+            clientId: CLIENT_ID,
             locationContext: currentGeo
           })
         });
@@ -1271,7 +1462,14 @@
         speechSent++;
         updateStats();
 
-        if (data.ignored === "silence") {
+        // Someone spoke but the recogniser did not answer in time: say so out loud.
+        if (data.ignored === "transcription_unavailable") {
+          addTimelineItem("system", "Speech was heard but could not be transcribed in time.");
+          handleCompanionAnswer(data.answer, data);
+          return;
+        }
+
+        if (data.ignored === "silence" || data.ignored === "echo") {
           updateVadUi("idle");
           setOrbState("idle");
           companionDot.className = "dot live";
@@ -1290,8 +1488,7 @@
 
         // Display transcription with speaker label on Cognitive Timeline
         addTimelineItem(speakerRole, `"${data.transcription}"`, {
-          speaker: speaker + (speakerRole === "patient" ? " (User)" : ""),
-          matchedDbTopic: data.matchedDbTopic
+          speaker: speaker + (speakerRole === "patient" ? " (User)" : "")
         });
 
         if (textPromptInput) {
@@ -1300,9 +1497,10 @@
         }
 
         // Handle answer
-        if (data.answer) {
-          handleCompanionAnswer(data.answer, data);
+        if (data.answer || ownPending.has(data.turnId)) {
+          deliverOwnAnswer(data);
         } else {
+          if (data.turnId) httpReturned.add(data.turnId);
           setOrbState("idle");
           companionDot.className = "dot live";
           companionStateLabel.textContent = "Ready · Voice Active";
@@ -1319,156 +1517,226 @@
     }
   }
 
-  function setupMediaRecorder() {
-    if (!mediaStream) return;
-    try {
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/ogg";
+  // ── Hands-free capture: decibel VAD over raw samples ─────────────────────
+  // Always listening once started; no button, no wake word. Loudness is measured in
+  // dBFS against the room's own noise floor (agent/voice-capture.js), the utterance
+  // keeps a short pre-roll so the first word survives, and it is sent as a WAV.
+  let voice = null;             // the /capture/voice.js module, loaded on first start
+  let detector = null;
+  let processorNode = null;
+  let manualSamples = null;
+  let userMutedMic = false;
+  let startPrompt = null;
 
-      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: mime });
-      audioChunks = [];
+  function showStartPrompt() {
+    if (startPrompt) return;
+    startPrompt = document.createElement("div");
+    startPrompt.textContent = "🎙️ Click anywhere to start hands-free listening";
+    startPrompt.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:50;padding:16px;" +
+      "border-radius:12px;background:#4f46e5;color:#fff;font:600 16px system-ui;text-align:center;" +
+      "cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.45)";
+    document.body.appendChild(startPrompt);
+  }
+  function hideStartPrompt() { if (startPrompt) startPrompt.remove(); startPrompt = null; }
 
-      mediaRecorder.ondataavailable = function (e) {
-        if (e.data && e.data.size > 0) {
-          audioChunks.push(e.data);
-          // Keep rolling buffer of maximum 12 seconds
-          if (audioChunks.length > 48) {
-            audioChunks.splice(0, audioChunks.length - 48);
-          }
-        }
-      };
+  function sendUtterance(samples) {
+    const wav = voice.encodeWav(samples, voice.SAMPLE_RATE);
+    submitRecordedAudio(new Blob([wav], { type: "audio/wav" }));
+  }
 
-      mediaRecorder.onstop = function () {
-        if (audioChunks.length > 0 && !aiSpeaking) {
-          const blob = new Blob(audioChunks, { type: mime });
-          audioChunks = [];
-          submitRecordedAudio(blob);
-        }
-        // Immediately restart for the next phrase
-        if (mediaStream.active && !aiSpeaking && isHardwareMicActive) {
-          try { mediaRecorder.start(250); } catch (e) {}
-        }
-      };
+  // ── Voice enrolment: one clean clip of the patient, compared with every new clip ──
+  const enrollVoiceBtn = document.getElementById("enrollVoiceBtn");
+  const enrollStatus = document.getElementById("enrollStatus");
+  const enrollRemoveBtn = document.getElementById("enrollRemoveBtn");
+  let enrollNext = false;
 
-      mediaRecorder.start(250);
-    } catch (e) {
-      console.warn("MediaRecorder init error:", e);
+  function showEnrollment(info) {
+    if (info && info.enrolled) {
+      enrollStatus.textContent = `✓ Voice enrolled (${info.seconds.toFixed(1)} s, ${new Date(info.enrolledAt).toLocaleString()})`;
+      enrollStatus.style.color = "#34d399";
+      enrollRemoveBtn.style.display = "";
+    } else {
+      enrollStatus.textContent = "Voice not enrolled: spoken personal questions are not answered";
+      enrollStatus.style.color = "var(--quiet)";
+      enrollRemoveBtn.style.display = "none";
+    }
+  }
+  fetch("/voice/enroll").then(r => r.json()).then(showEnrollment).catch(() => {});
+
+  async function saveEnrollment(samples) {
+    const seconds = samples.length / voice.SAMPLE_RATE;
+    if (seconds < 3) {
+      enrollStatus.textContent = `That was ${seconds.toFixed(1)} s. Please say a longer sentence (4–8 s).`;
+      enrollNext = true;
+      return;
+    }
+    const wav = voice.encodeWav(samples, voice.SAMPLE_RATE);
+    let binary = "";
+    for (let i = 0; i < wav.length; i += 0x8000) binary += String.fromCharCode.apply(null, wav.subarray(i, i + 0x8000));
+    const res = await fetch("/voice/enroll", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ audio: btoa(binary), mimeType: "audio/wav", seconds }) });
+    showEnrollment(res.ok ? await res.json() : null);
+    if (res.ok) speak("Thank you. I'll recognise your voice from now on.");
+  }
+
+  enrollVoiceBtn.addEventListener("click", async () => {
+    unlockAudio();
+    if (!isHardwareMicActive && !(await startHardwareAudioIngestion())) return;
+    enrollNext = true;
+    detector.reset();
+    enrollStatus.style.color = "#fbbf24";
+    enrollStatus.textContent = "Listening: say one natural sentence of 4–8 seconds, alone, with no TV on…";
+    // If nothing is caught, say why in numbers instead of waiting forever.
+    const started = Date.now();
+    const check = setInterval(() => {
+      if (!enrollNext) { clearInterval(check); return; }
+      if (Date.now() - started > 10_000) {
+        const { floorDb, thresholdDb } = detector.level();
+        enrollStatus.style.color = "#fb7185";
+        enrollStatus.textContent = `I can't hear a sentence yet: room ${Math.round(floorDb)} dBFS, speech must pass ` +
+          `${Math.round(thresholdDb)} dBFS. Move closer to the mic or speak up.`;
+      }
+    }, 1000);
+  });
+  enrollRemoveBtn.addEventListener("click", async () => {
+    const res = await fetch("/voice/enroll", { method: "DELETE" });
+    showEnrollment(res.ok ? await res.json() : null);
+  });
+
+  // Mic health, reported to the daemon log every 5 s: the loudest moment, the room's
+  // floor and the trigger level. "Nothing happens when I speak" is then a number.
+  const micStats = { peakDb: -100, blocks: 0, utterances: 0 };
+  function reportMic(event = {}) {
+    if (!detector) return;
+    const { floorDb, thresholdDb, speaking } = detector.level();
+    fetch("/telemetry/mic", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ peakDb: micStats.peakDb, floorDb, thresholdDb, speaking, active: isHardwareMicActive,
+        aiSpeaking, enrolling: enrollNext, blocks: micStats.blocks, utterances: micStats.utterances,
+        track: mediaStream ? mediaStream.getAudioTracks()[0]?.label : null, ...event }) }).catch(() => {});
+    micStats.peakDb = -100;
+    micStats.blocks = 0;
+  }
+  setInterval(() => reportMic(), 5000);
+
+  function onAudioBlock(input, inputRate) {
+    const block = voice.downsample(input, inputRate, voice.SAMPLE_RATE);
+    micStats.blocks++;
+    micStats.peakDb = Math.max(micStats.peakDb, voice.rmsDbfs(block));
+    if (manualRecording) { manualSamples.push(block); return; }
+    // While the AI is talking (and just after), the mic would hear the speaker.
+    if (aiSpeaking || Date.now() < resumeListeningAt) {
+      if (detector.speaking) detector.reset();
+      updateVadUi("muted");
+      return;
+    }
+    const utterance = detector.push(block);
+    if (utterance) micStats.utterances++;
+    if (utterance && enrollNext) {
+      enrollNext = false;                     // this clip is the reference, not a question
+      reportMic({ event: "enroll_clip", seconds: utterance.length / voice.SAMPLE_RATE });
+      updateVadUi("idle");
+      saveEnrollment(utterance);
+    } else if (utterance) {
+      updateVadUi("processing");
+      sendUtterance(utterance);
+    } else {
+      updateVadUi(detector.speaking ? "speaking" : "idle");
     }
   }
 
-  function commitCurrentAudioSlice() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      try {
-        mediaRecorder.stop();
-      } catch (e) {}
+  const spectrum = new Uint8Array(32);
+  function drawLevels() {
+    if (analyser && isHardwareMicActive) {
+      analyser.getByteFrequencyData(spectrum);
+      for (let i = 0; i < NUM_BARS; i++) {
+        const pct = Math.max(8, Math.min(100, Math.round(((spectrum[i] || 0) / 255) * 100)));
+        bars[i].style.height = pct + "%";
+        bars[i].className = pct > 60 ? "spectrum-bar spike" : pct > 20 ? "spectrum-bar active" : "spectrum-bar";
+      }
+      const { db, floorDb, thresholdDb } = detector.level();
+      dbStatus.textContent = `${Math.round(db)} dBFS · room ${Math.round(floorDb)} · speech > ${Math.round(thresholdDb)}`;
     }
+    requestAnimationFrame(drawLevels);
   }
 
   async function startHardwareAudioIngestion() {
     try {
+      voice = voice || await import("/capture/voice.js");
       if (!mediaStream) {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // No echo cancellation: the mic is already ignored while the AI talks, and on
+        // Windows echo cancellation makes the system treat the page as a call and turn
+        // other sound down. Auto-gain and noise suppression stay on: built-in laptop mics
+        // are quiet when raw, and the detector compares speech with the room's own
+        // floor, so a steady gain change does not upset it.
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true }
+        });
+      }
+      // One context for listening and speaking, so a single unlock covers both.
+      audioCtx = getAudioContext();
+      if (audioCtx.state !== "running") await audioCtx.resume().catch(() => {});
+      if (audioCtx.state !== "running") {
+        // The browser holds audio until the first interaction (kiosk launch skips this).
+        showStartPrompt();
+        vadStatus.textContent = "Status: Waiting for one click to start listening";
+        return false;
+      }
+
+      if (!processorNode) {
+        const source = audioCtx.createMediaStreamSource(mediaStream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+        const sink = audioCtx.createGain();
+        sink.gain.value = 0;                     // a processor only runs while connected
+        source.connect(processorNode);
+        processorNode.connect(sink);
+        sink.connect(audioCtx.destination);
+        detector = new voice.UtteranceDetector();
+        processorNode.onaudioprocess = e => {
+          if (isHardwareMicActive) onAudioBlock(e.inputBuffer.getChannelData(0), audioCtx.sampleRate);
+        };
+        drawLevels();
       }
 
       isHardwareMicActive = true;
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === "suspended") await audioCtx.resume();
-
-      const source = audioCtx.createMediaStreamSource(mediaStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
-
-      const buffer = new Uint8Array(analyser.frequencyBinCount);
-
-      // Start continuous audio recording slice
-      setupMediaRecorder();
-
+      userMutedMic = false;
+      hideStartPrompt();
+      refreshSpeakers().catch(() => {});      // device labels are only visible once the mic is allowed
       updateVadUi("idle");
       toggleModeBtn.innerHTML = "🎙️ Ambient Mic: ON (24/7)";
       toggleModeBtn.style.color = "#34d399";
       toggleModeBtn.style.borderColor = "rgba(16, 185, 129, 0.45)";
       toggleModeBtn.style.background = "rgba(16, 185, 129, 0.15)";
       textPromptInput.placeholder = "Ambient listening active... Speak anytime or type here...";
-
-      function monitorVad() {
-        if (!analyser || !isHardwareMicActive) return;
-        analyser.getByteFrequencyData(buffer);
-        let sum = 0;
-        for (let i = 0; i < NUM_BARS; i++) {
-          const val = buffer[i] || 0;
-          sum += val;
-          const pct = Math.max(8, Math.min(100, Math.round((val / 255) * 100)));
-          bars[i].style.height = pct + "%";
-          bars[i].className = pct > 60 ? "spectrum-bar spike" : pct > 20 ? "spectrum-bar active" : "spectrum-bar";
-        }
-        const avg = sum / NUM_BARS;
-        const db = Math.round(20 * Math.log10(avg / 255 || 0.001));
-        dbStatus.textContent = db + " dB";
-
-        // Mute mic processing while AI companion is speaking (prevents speaker echo)
-        if (aiSpeaking) {
-          updateVadUi("muted");
-          requestAnimationFrame(monitorVad);
-          return;
-        }
-
-        // Voice Activity Detection
-        if (avg > 25) { // Active speech decibels
-          if (!isVADSpeaking && !manualRecording) {
-            isVADSpeaking = true;
-            updateVadUi("speaking");
-          }
-          if (vadSilenceTimer) {
-            clearTimeout(vadSilenceTimer);
-            vadSilenceTimer = null;
-          }
-        } else if (isVADSpeaking && !manualRecording) {
-          // Pause after speaking: wait 850ms silence, then flush to Gemini 4 Argon!
-          if (!vadSilenceTimer) {
-            vadSilenceTimer = setTimeout(() => {
-              isVADSpeaking = false;
-              vadSilenceTimer = null;
-              updateVadUi("processing");
-              commitCurrentAudioSlice();
-            }, 850);
-          }
-        } else if (!manualRecording) {
-          updateVadUi("idle");
-        }
-
-        requestAnimationFrame(monitorVad);
-      }
-
-      monitorVad();
+      return true;
     } catch (err) {
       console.warn("Hardware audio access error:", err);
-      vadStatus.textContent = "Status: Mic Blocked / Error";
+      vadStatus.textContent = "Status: Mic Blocked / Error — " + (err.message || err.name);
       micBtn.innerHTML = "🎙️ Enable Mic";
+      return false;
     }
   }
 
-  // Manual Click-To-Speak / Push-to-Talk Toggle
+  // Push-to-talk stays available as an override: click to record, click to send.
   micBtn.addEventListener("click", async () => {
     unlockAudio();
-    if (!isHardwareMicActive) {
-      await startHardwareAudioIngestion();
-      return;
-    }
+    if (!isHardwareMicActive) { await startHardwareAudioIngestion(); return; }
     if (!manualRecording) {
+      detector.reset();
+      manualSamples = [];
       manualRecording = true;
-      audioChunks = [];
       updateVadUi("manual_recording");
-      if (mediaRecorder && mediaRecorder.state === "inactive") {
-        try { mediaRecorder.start(250); } catch (e) {}
-      }
     } else {
       manualRecording = false;
-      updateVadUi("processing");
-      commitCurrentAudioSlice();
+      const total = manualSamples.reduce((n, b) => n + b.length, 0);
+      const samples = new Float32Array(total);
+      let offset = 0;
+      for (const b of manualSamples) { samples.set(b, offset); offset += b.length; }
+      manualSamples = null;
+      if (total >= voice.SAMPLE_RATE * 0.3) { updateVadUi("processing"); sendUtterance(samples); }
+      else updateVadUi("idle");
     }
   });
 
@@ -1476,9 +1744,9 @@
     unlockAudio();
     if (isHardwareMicActive) {
       isHardwareMicActive = false;
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        try { mediaRecorder.stop(); } catch (e) {}
-      }
+      userMutedMic = true;
+      manualRecording = false;
+      if (detector) detector.reset();
       updateVadUi("off");
       toggleModeBtn.innerHTML = "🎙️ Mic: Muted";
       toggleModeBtn.style.color = "var(--ink)";
@@ -1522,12 +1790,16 @@
     });
   }
 
-  window.addEventListener("click", () => {
+  // Start listening as soon as the page opens. A browser holds audio until one
+  // interaction unless it was launched for kiosk use (npm run agent:kiosk), so any
+  // click or key finishes a start that was held back. A deliberate mute is respected.
+  startHardwareAudioIngestion();
+  const finishStart = () => {
     unlockAudio();
-    if (!isHardwareMicActive) {
-      startHardwareAudioIngestion();
-    }
-  }, { once: true });
+    if (!isHardwareMicActive && !userMutedMic) startHardwareAudioIngestion();
+  };
+  window.addEventListener("click", finishStart);
+  window.addEventListener("keydown", finishStart);
 
   // ── Real-Time SSE Stream & Feed ──────────────────────────────────────────
   function setupEvents() {
@@ -1537,6 +1809,7 @@
         try {
           const data = JSON.parse(ev.data);
           if (data.type === "init") {
+            onSpeakerState(data.audioOutput);
             if (data.location) {
               const d = data.location.distanceFromHomeMeters || 0;
               const isOut = data.location.state === "left_safe_zone" || d > 50;
@@ -1550,13 +1823,35 @@
               for (const item of data.recent.slice().reverse()) {
                 if (item.type === "patient_turn") addTimelineItem("patient", `"${item.text}"`);
                 else if (item.type === "heard_turn") addTimelineItem("caregiver", `"${item.text}"`, { speaker: item.speaker || "Caregiver" });
-                else if (item.type === "companion_answer") handleCompanionAnswer(item.answer, item);
+                else if (item.type === "companion_answer") showReplayedAnswer(item);
               }
             }
           } else if (data.type === "companion_answer") {
-            handleCompanionAnswer(data.answer, data);
+            if (data.originClientId === CLIENT_ID) {
+              if (httpReturned.has(data.patientTurnId)) handleCompanionAnswer(data.answer, data);
+              else ownPending.set(data.patientTurnId, data);
+            } else {
+              handleCompanionAnswer(data.answer, data, { silent: true });   // another tab asked; it speaks
+            }
+          } else if (data.type === "audio_output") {
+            onSpeakerState(data);
+          } else if (data.type === "speaking") {
+            // Some tab is talking: every tab's mic stays deaf until it has finished.
+            resumeListeningAt = Math.max(resumeListeningAt, Number(data.until) || 0);
           } else if (data.type === "alert") {
-            triggerAlert(data.alertId, currentGeo.distanceFromHomeMeters);
+            triggerAlert({ alertIds: [data.alertId], alertReasons: data.reason ? [data.reason] : [] });
+          } else if (data.type === "caregiver_message") {
+            if (data.status !== "skipped_cooldown") {
+              const how = data.mode === "twilio_live" ? `SMS ${data.status}` : "simulated SMS (not sent: " + (data.note || "live SMS off") + ")";
+              addTimelineItem("system", `✉️ Caregiver message, ${how}, to ${data.to}: "${data.body}"`);
+            }
+          } else if (data.type === "gps") {
+            // Location reported by another device (a phone, a test): keep the geofence view current.
+            const miles = parseFloat(data.distance) || 0;
+            const outside = data.state === "left_safe_zone";
+            currentGeo = { ...currentGeo, state: data.state, distanceFromHomeMeters: Math.round(miles * 1609.34) };
+            radarCircle.className = outside ? "radar-circle outside" : "radar-circle";
+            geoState.textContent = outside ? `Left Safe Zone (${miles.toFixed(2)} mi)` : "Inside Safe Zone";
           } else if (data.type === "phone_call") {
             handlePhoneCallEvent(data);
           }

@@ -21,7 +21,7 @@ const UNIDENTIFIED = /^(others?|unknown|unidentified)$/i;
  * @returns {{ role: "patient" | "caregiver" | null, speaker: object }}
  *   role null means: do not record this turn.
  */
-export function classifySpeaker({ speaker, speakerType, confidence = null, method = "declared" } = {}) {
+export function classifySpeaker({ speaker, speakerType, confidence = null, method = "declared", verified = false } = {}) {
   const name = String(speaker ?? "").trim() || null;
   const type = String(speakerType ?? "").trim().toLowerCase();
 
@@ -38,7 +38,9 @@ export function classifySpeaker({ speaker, speakerType, confidence = null, metho
       name,
       kind,
       method,
-      confidence: Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null
+      confidence: Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null,
+      // true only when a spoken voice matched the enrolled reference
+      verified: method === "diarization" ? verified === true : null
     }
   };
 }

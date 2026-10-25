@@ -360,6 +360,10 @@ export function buildHeardTurn(scope, input, now) {
   }, now);
   // A speech turn's text is a machine transcription of audio: it is derived.
   if (source && modality === "speech") {
+    // The transcript is the content. Audio retention is off by default, so without it
+    // the source would hold neither her voice nor her words — only a digest — and
+    // nothing she said could ever be cited. inspection.required marks it unverified.
+    source.content = String(input.text).slice(0, 8000);
     source.derivedFrom = input.audio?.ref ?? null;
     source.processor = {
       name: input.transcript?.engine ?? "unknown",
@@ -378,7 +382,8 @@ export function buildHeardTurn(scope, input, now) {
     epistemic: "observed",
     speaker: input.speaker
       ? { name: input.speaker.name ?? null, kind: input.speaker.kind ?? role,
-          method: input.speaker.method ?? "declared", confidence: input.speaker.confidence ?? null }
+          method: input.speaker.method ?? "declared", confidence: input.speaker.confidence ?? null,
+          verified: input.speaker.verified ?? null }
       : null,
     text: String(input.text).slice(0, 8000),
     startedAt: input.startedAt ?? now,
@@ -444,7 +449,8 @@ export function buildCompanionTurn(scope, input, now) {
     safety: {
       precheck: input.safetyPrecheck ?? "pass",
       vetoConstraintId: input.vetoConstraintId ?? null,
-      alertIds: input.alertIds ?? []
+      alertIds: input.alertIds ?? [],
+      alertReasons: input.alertReasons ?? []
     },
     model: {
       name: input.model.name, version: input.model.version ?? null,

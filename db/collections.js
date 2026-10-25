@@ -380,7 +380,8 @@ export const collections = [
           name: strOrNull(),
           kind: { enum: ["patient", "caregiver", "visitor"] },
           method: { enum: ["diarization", "declared"] },
-          confidence: unit()
+          confidence: unit(),
+          verified: { bsonType: ["bool", "null"], description: "Spoken voice matched the enrolled reference clip. null for typed input." }
         }
       },
       text: str({ maxLength: 8000 }),
@@ -429,7 +430,8 @@ export const collections = [
         properties: {
           precheck: { enum: ["pass", "veto", "escalated"] },
           vetoConstraintId: strOrNull(),
-          alertIds: arrOf(str())
+          alertIds: arrOf(str()),
+          alertReasons: arrOf(str(), { description: "Headline per alertIds entry, same order: why each alert was raised." })
         }
       },
       model: {

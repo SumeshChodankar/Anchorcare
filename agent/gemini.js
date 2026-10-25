@@ -78,8 +78,20 @@ ABSOLUTE RULES
 8. If she or the user asks to "call Margaret", "call caregiver", or contact someone for help:
    - Set escalation_required: true.
    - Set epistemic_basis: "inferred".
-   - Answer with warm, direct reassurance that Margaret is being called right now anonymously via the automated care system, and that she is safe.
+   - Answer warmly that you have let the care team know she would like to speak to them.
+     Never say a call is happening or that she is safe: the system decides that, not you.
    - In inferred_triples, extract: [{"subject": "Margaret", "predicate": "ContactStatus", "object": "CallInitiated"}].
+
+9. WHAT SHE TOLD YOU EARLIER is her own unconfirmed words, not evidence. You may repeat
+   one back only as a quotation with when she said it ("Earlier today you told me ...")
+   and say it is not yet confirmed. Never restate it as fact, and never put its ids in
+   evidence_ids.
+10. Never work out her name, age or address from the evidence or from who the notes are
+   about. Use only the preferred name under ABOUT HER; if there is none, say you do not
+   have it written down.
+
+11. Never say you have told, notified, alerted, called or messaged anyone, or that help is
+   coming. The system decides that and says it separately; your claim could be false.
 
 HOW TO SPEAK
 Short sentences. One idea each. Warm, unhurried, never testing her. Use names, not
@@ -87,10 +99,62 @@ pronouns, when naming people. Say when something happened in plain words
 ("on Thursday", "this morning"), not as a date.
 Never say "you told me", "as I said", "remember", or "you forgot".`;
 
+/** Gemini's thinking setting for latency-sensitive calls; empty when not configured. */
+export const thinking = cfg => cfg.thinkingLevel ? { thinkingConfig: { thinkingLevel: cfg.thinkingLevel } } : {};
+
+/**
+ * Runs `attempt` and, if it has not answered within hedgeAfterMs, starts one more
+ * copy and takes whichever finishes first. Provider latency has a long tail (single
+ * calls measured at 2 s and at 27 s with identical input); a second request almost
+ * never lands in the same tail. A failure before the hedge point retries at once.
+ * Rejects after deadlineMs so the caller can fall back instead of waiting.
+ */
+export function hedged(attempt, { hedgeAfterMs = 3500, deadlineMs = 10_000, maxAttempts = 2, signal } = {}) {
+  return new Promise((resolve, reject) => {
+    const controllers = [];
+    let settled = false, started = 0, failed = 0, lastError = null;
+    const finish = (settle, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hedgeTimer); clearTimeout(deadlineTimer);
+      for (const c of controllers) c.abort();
+      settle(value);
+    };
+    const launch = () => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      started++;
+      Promise.resolve().then(() => attempt(controller.signal)).then(
+        value => finish(resolve, value),
+        error => {
+          lastError = error;
+          failed++;
+          if (started < maxAttempts) launch();
+          else if (failed >= started) finish(reject, lastError);
+        });
+    };
+    if (signal?.aborted) return reject(signal.reason ?? new Error("aborted"));
+    signal?.addEventListener("abort", () => finish(reject, signal.reason ?? new Error("aborted")), { once: true });
+    // Each further copy starts hedgeAfterMs after the previous one, up to maxAttempts.
+    let hedgeTimer;
+    const scheduleHedge = () => {
+      hedgeTimer = setTimeout(() => {
+        if (settled || started >= maxAttempts) return;
+        launch();
+        scheduleHedge();
+      }, hedgeAfterMs);
+    };
+    scheduleHedge();
+    const deadlineTimer = setTimeout(() =>
+      finish(reject, new Error(`no answer within ${deadlineMs} ms${lastError ? ` (last error: ${lastError.message})` : ""}`)), deadlineMs);
+    launch();
+  });
+}
+
 export function createReasoner(cfg) {
   let client = null;
 
-  return async function reason({ utterance, evidence, identity, script, recent, locationContext }, signal) {
+  return async function reason({ utterance, evidence, identity, script, recent, locationContext, herWords = [] }, signal) {
     if (!client) {
       const { GoogleGenAI } = await import("@google/genai");
       client = new GoogleGenAI({ apiKey: cfg.geminiKey });
@@ -130,12 +194,16 @@ export function createReasoner(cfg) {
       `ABOUT HER\n${identityBlock}`,
       `\nWHAT SHE HAS SAID RECENTLY (her words only)\n${recentBlock}`,
       `\nEVIDENCE — approved, source-backed memory\n${evidenceBlock}`,
+      herWords.length
+        ? `\nWHAT SHE TOLD YOU EARLIER — her own words, NOT confirmed, never evidence\n` +
+          herWords.map(u => `[${new Date(u.startedAt).toISOString().slice(0, 16).replace("T", " ")} UTC] "${u.text}"`).join("\n")
+        : "",
       script ? `\nSCRIPT — reproduce this exactly as your whole answer:\n"${script}"` : "",
       `\nSHE JUST SAID\n"${utterance}"`,
       `\nAnswer her.`
     ].filter(Boolean).join("\n");
 
-    const response = await client.models.generateContent({
+    const response = await hedged(attemptSignal => client.models.generateContent({
       model: cfg.geminiModel,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
@@ -143,9 +211,10 @@ export function createReasoner(cfg) {
         temperature: cfg.temperature,
         responseMimeType: "application/json",
         responseSchema: CARE_RESPONSE_SCHEMA,
-        abortSignal: signal
+        ...thinking(cfg),
+        abortSignal: attemptSignal
       }
-    });
+    }), { hedgeAfterMs: cfg.hedgeAfterMs, deadlineMs: cfg.cognitionDeadlineMs, maxAttempts: cfg.maxModelAttempts, signal });
 
     const text = response.text ?? response.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error("Model returned no content");

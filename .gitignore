@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Chrome profile used by npm run agent:kiosk
+.kiosk-profile/
+
+# Reference voice clip for speaker matching (biometric: never commit)
+.voice-enrollment/

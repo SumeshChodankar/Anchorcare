@@ -21,6 +21,14 @@ let currentCallState = {
   updatedAt: null
 };
 
+// One call at a time, and not again within five minutes: a frightened person may say
+// "help" five times in a row, and the care team needs one call, not five.
+const CALL_COOLDOWN_MS = 5 * 60_000;
+let lastCallAt = 0;
+export function callCooldownActive(now = Date.now()) {
+  return now - lastCallAt < CALL_COOLDOWN_MS || ["dialing", "ringing", "queued", "in-progress"].includes(currentCallState.status);
+}
+
 export function getTargetPhoneNumber() {
   return targetPhoneNumber || process.env.MARGARET_PHONE_NUMBER || process.env.SOS_CAREGIVER_NUMBER || "";
 }
@@ -55,8 +63,10 @@ export function getCallStatus() {
   };
 }
 
-export async function initiateCall({ reason = "Call request", targetNumber = null, anonymous = true, broadcast = null }) {
+export async function initiateCall({ reason = "Call request", targetNumber = null, anonymous = true, broadcast = null,
+                                     subjectName = "the person in your care" }) {
   const destination = targetNumber || getTargetPhoneNumber();
+  lastCallAt = Date.now();
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_FROM_NUMBER;
@@ -64,9 +74,8 @@ export async function initiateCall({ reason = "Call request", targetNumber = nul
 
   const anonymousMessage =
     "Hello. This is an automated anonymous care notification from AnchorCare. " +
-    "An alert has been triggered for Margaret. " +
-    "Ambient voice and location monitoring are active, and she is safe. " +
-    "Please check the AnchorCare portal for live status.";
+    `An alert has been triggered for ${String(subjectName).replace(/[<>&"']/g, "")}. ` +
+    "Please check the AnchorCare portal for their live status and location.";
 
   const twiml = `<Response><Say voice="Polly.Amy">${anonymousMessage}</Say></Response>`;
 

@@ -26,7 +26,9 @@ export class AgentApprovalError extends Error {
 const WRITABLE = new Set([
   "conversation_turns", "conversation_sessions", "sources",
   "inferences", "care_alerts", "active_tasks", "audit_events", "audit_counters",
-  "working_memory", "working_sessions", "engagement_ts", "telemetry_ts", "ts_dedupe"
+  "working_memory", "working_sessions", "engagement_ts", "telemetry_ts", "ts_dedupe",
+  // drafts only: a statement she made, for a caregiver to review (the guard refuses "approved")
+  "personal_records"
 ]);
 
 /** Fields no agent write may ever carry. */
@@ -95,6 +97,25 @@ export class AgentStore {
       throw new AgentApprovalError(collection, "cannot set reviewStatus 'approved'");
     }
     return this.db.collection(collection).updateOne(filter, update, options);
+  }
+
+  /**
+   * A lease on one unit of work, shared across processes. ts_dedupe gives a unique
+   * _id and a TTL on expiresAt. The upsert only matches a lapsed lease, so a live one
+   * makes it collide on _id: that duplicate-key error means someone else holds it.
+   * @returns {Promise<boolean>} true if this caller now holds the lease
+   */
+  async claim(key, { owner, leaseMs, now = new Date() }) {
+    try {
+      await this.safeUpdate("ts_dedupe",
+        { _id: key, expiresAt: { $lt: now } },
+        { $set: { series: "agent_claim", owner, claimedAt: now, expiresAt: new Date(+now + leaseMs) } },
+        { upsert: true });
+      return true;
+    } catch (error) {
+      if (error.code === 11000) return false;
+      throw error;
+    }
   }
 
   // db/ingest.js calls these names on a store in memory mode; present for parity.
