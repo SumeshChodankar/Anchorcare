@@ -1,0 +1,8 @@
+{
+  "mappings": {
+    "arthur_01": {
+      "target_household_id": "anchorcare-demo",
+      "target_subject_id": "demo-person-001"
+    }
+  }
+}
