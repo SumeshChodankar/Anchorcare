@@ -1,0 +1,1331 @@
+{
+  "_meta": {
+    "about": "Example documents for every collection in the Anchorcare cognitive memory schema.",
+    "spec": "docs/ATLAS-MEMORY-SCHEMA.md",
+    "format": "MongoDB Extended JSON (relaxed). Keys are collection names; values are arrays of documents.",
+    "warning": "Fictional household. Every record here is caregiver-approved demo data. Do not seed a cluster that holds real patient data.",
+    "scope": { "householdId": "demo-household", "subjectId": "margaret" }
+  },
+
+  "working_sessions": [
+    {
+      "_id": "wsession_2026-10-24T09:12Z_margaret",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "channel": "voice",
+      "startedAt": { "$date": "2026-10-24T09:12:04Z" },
+      "lastTurnAt": { "$date": "2026-10-24T09:18:41Z" },
+      "turnCount": 7,
+      "attentionFocus": {
+        "topic": "sarah_visit",
+        "personIds": ["person_sarah"],
+        "placeId": "node_place_margarets_garden",
+        "chapterId": null,
+        "since": { "$date": "2026-10-24T09:15:02Z" }
+      },
+      "orientationSignals": {
+        "repeatedQuestionCount": 3,
+        "timeConfusionReports": 1,
+        "placeConfusionReports": 0,
+        "lastSignalAt": { "$date": "2026-10-24T09:18:10Z" }
+      },
+      "affect": { "reportedValence": null, "reportedArousal": null, "basis": "unknown", "at": null },
+      "distressFlag": { "raised": false, "reason": null, "at": null, "alertId": null },
+      "activeProcedureId": "proc_repeated_question_support",
+      "activeProcedureVersion": 3,
+      "pendingConfirmations": [],
+      "expiresAt": { "$date": "2026-10-24T21:18:41Z" },
+      "closedAt": null,
+      "closeReason": null
+    }
+  ],
+
+  "working_memory": [
+    {
+      "_id": "wm_01JB2X7Q9K",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "slotType": "unresolved_question",
+      "content": "Is Sarah coming today?",
+      "boundTo": [
+        { "store": "semantic", "id": "person_sarah" },
+        { "store": "procedural", "id": "plan_visit_sarah_20261024" }
+      ],
+      "activation": 0.92,
+      "decayHalfLifeSeconds": 900,
+      "reinforcementCount": 3,
+      "provenance": "patient_utterance",
+      "createdAt": { "$date": "2026-10-24T09:15:02Z" },
+      "lastTouchedAt": { "$date": "2026-10-24T09:18:10Z" },
+      "expiresAt": { "$date": "2026-10-24T13:18:10Z" }
+    },
+    {
+      "_id": "wm_01JB2X81FF",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "slotType": "safety_flag",
+      "content": "Morning medication reminder had no response at 08:10.",
+      "boundTo": [{ "store": "safety", "id": "alert_01JB2YQ8ZK" }],
+      "activation": 1.0,
+      "decayHalfLifeSeconds": 86400,
+      "reinforcementCount": 1,
+      "provenance": "retrieval",
+      "createdAt": { "$date": "2026-10-24T09:12:05Z" },
+      "lastTouchedAt": { "$date": "2026-10-24T09:12:05Z" },
+      "expiresAt": { "$date": "2026-10-28T09:12:05Z" }
+    }
+  ],
+
+  "active_tasks": [
+    {
+      "_id": "task_9f3c2a7e",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sessionId": null,
+      "taskType": "escalate",
+      "status": "done",
+      "riskTier": 2,
+      "procedureId": "medication_reminder",
+      "procedureVersion": 4,
+      "payload": { "alertId": "alert_01JB2YQ8ZK" },
+      "dueAt": { "$date": "2026-10-24T08:10:00Z" },
+      "slaDeadlineAt": { "$date": "2026-10-24T08:40:00Z" },
+      "blockedBy": [],
+      "leaseToken": null,
+      "leaseUntil": null,
+      "attempts": 1,
+      "createdAt": { "$date": "2026-10-24T08:10:00Z" }
+    }
+  ],
+
+  "sources": [
+    {
+      "_id": "source_caregiver_note_4411",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sourceType": "caregiver_report",
+      "modality": "text",
+      "content": "Sarah came over at half two and they sat in the garden with tea. She brought the seaside photographs from the album. Margaret was in good spirits and talked about the pier.",
+      "mediaPtr": null,
+      "derivedFrom": null,
+      "processor": null,
+      "digest": "3b1d9c5e7a0f2048c6b1e9d4a7f30c82b5e6d1a94f7c20385be9d1c4a60f7e23",
+      "inspection": { "required": false, "by": "carer_jane", "at": { "$date": "2026-10-22T19:20:00Z" } },
+      "recordedAt": { "$date": "2026-10-22T18:04:12Z" }
+    },
+    {
+      "_id": "source_photo_garden_01",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sourceType": "media_reference",
+      "modality": "image",
+      "content": null,
+      "mediaPtr": "image_7c2f1a90",
+      "derivedFrom": null,
+      "processor": null,
+      "digest": "9e4a1f70b28c35d6a0e7f1c4b93d8206e5a7c1f40b32d987e6c5a4b31f20d8e7",
+      "inspection": { "required": true, "by": "carer_jane", "at": { "$date": "2026-10-22T19:19:40Z" } },
+      "recordedAt": { "$date": "2026-10-22T18:04:50Z" }
+    },
+    {
+      "_id": "source_photo_garden_01_caption",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sourceType": "media_reference",
+      "modality": "text",
+      "content": "Two women seated at a small table in a garden, teacups and a photo album between them.",
+      "mediaPtr": null,
+      "derivedFrom": "source_photo_garden_01",
+      "processor": { "name": "voyage-multimodal-3", "version": "2026-05", "at": { "$date": "2026-10-22T18:05:00Z" } },
+      "digest": "c71b2e9045a8d3f6107b4e2c9d8a5306f1b7c4e293a0d586f7c1b2e49d035a68",
+      "inspection": { "required": true, "by": "carer_jane", "at": { "$date": "2026-10-22T19:19:55Z" } },
+      "recordedAt": { "$date": "2026-10-22T18:05:01Z" }
+    }
+  ],
+
+  "episodes": [
+    {
+      "_id": "episode_visit_001",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "summary": "Sarah visited and they had tea in the garden. Sarah brought photographs from the seaside trip.",
+      "gist": "Sarah visited; tea in the garden.",
+      "searchText": "Sarah visited and they had tea in the garden. Sarah brought photographs from the seaside trip. garden tea daughter visit photographs seaside pier",
+      "what": "Afternoon visit with tea outdoors",
+      "place": "Back garden",
+      "sourceIds": ["source_caregiver_note_4411", "source_photo_garden_01", "source_photo_garden_01_caption"],
+      "personIds": ["person_sarah"],
+      "semanticRefs": ["person_sarah", "node_place_margarets_garden", "node_routine_tea_garden_afternoon"],
+      "chapterId": "chapter_oakfield_road",
+      "eventStart": { "$date": "2026-10-22T14:30:00Z" },
+      "eventEnd": { "$date": "2026-10-22T16:00:00Z" },
+      "recordedAt": { "$date": "2026-10-22T18:04:12Z" },
+      "reviewStatus": "approved",
+      "reviewedAt": { "$date": "2026-10-22T19:20:00Z" },
+      "approvedBy": "carer_jane",
+      "eventStatus": "reported_completed",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "confidence": 0.9,
+      "salience": 0.8,
+      "emotionalTone": { "reported": "warm", "basis": "caregiver_report", "sourceId": "source_caregiver_note_4411" },
+      "sensitivity": "normal",
+      "mediaPtr": "image_7c2f1a90",
+      "derivedModalities": [
+        { "modality": "text", "sourceId": "source_caregiver_note_4411", "processor": null },
+        { "modality": "image", "sourceId": "source_photo_garden_01", "processor": null }
+      ],
+      "visualEmbedding": null,
+      "visualEmbeddingModel": "voyage-multimodal-3",
+      "visualEmbeddingAt": { "$date": "2026-10-22T18:05:00Z" },
+      "embeddingMeta": {
+        "textModel": "voyage-4", "textDims": 1024,
+        "visualModel": "voyage-multimodal-3", "visualDims": 1024,
+        "inputDigest": "9f2c84b1e07d35a6c2b9e14f7a08d536b1c7e294a5f0d873b6e1c9a4f2057d38",
+        "generatedAt": { "$date": "2026-10-22T18:05:00Z" }
+      },
+      "consolidation": {
+        "state": "consolidating", "rehearsalCount": 2,
+        "lastConsolidatedAt": { "$date": "2026-10-23T02:10:00Z" },
+        "promotedNodeIds": ["node_routine_tea_garden_afternoon"]
+      },
+      "recurrenceKey": "tea|garden|afternoon",
+      "dedupeKey": "visit|person_sarah|2026-10-22",
+      "contractDigest": "a71b4c9e205d38f6b1c7e04a9d2f6835c1b7e9a40df253867c1e9b4a2f50d386"
+    }
+  ],
+
+  "memory_images": [
+    {
+      "_id": "image_7c2f1a90",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "targetType": "episode",
+      "targetId": "episode_visit_001",
+      "caption": "Tea in the garden with Sarah, October 2026",
+      "contentType": "image/png",
+      "byteLength": 16713,
+      "reviewStatus": "approved",
+      "reviewedAt": { "$date": "2026-10-22T19:19:40Z" },
+      "createdAt": { "$date": "2026-10-22T18:04:50Z" }
+    }
+  ],
+
+  "memory_state": [
+    {
+      "_id": "episode_visit_001",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "episodeId": "episode_visit_001",
+      "stabilityDays": 2.5,
+      "anchorAt": { "$date": "2026-10-23T10:04:00Z" },
+      "lastRehearsalAt": { "$date": "2026-10-23T10:04:00Z" },
+      "nextDueAt": { "$date": "2026-10-24T05:35:00Z" },
+      "attempts": 2,
+      "version": 2,
+      "modelVersion": "prototype-exponential-v1",
+      "salienceAtSelection": 0.8,
+      "suppressUntil": null
+    }
+  ],
+
+  "recall_attempts": [
+    {
+      "_id": "attempt_unique_001",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "attemptId": "attempt_unique_001",
+      "episodeId": "episode_visit_001",
+      "cueLevel": 1,
+      "outcome": "recalled",
+      "recordedAt": { "$date": "2026-10-23T10:04:00Z" },
+      "applied": true
+    }
+  ],
+
+  "rehearsal_sets": [
+    {
+      "_id": "rehearsal_margaret_2026-10-24",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "day": "2026-10-24",
+      "timezone": "Europe/London",
+      "episodeIds": ["episode_visit_001", "episode_chapel_014", "episode_phonecall_thomas_007"],
+      "dailyLimit": 3,
+      "experimental": true,
+      "generatedAt": { "$date": "2026-10-23T21:00:00Z" }
+    }
+  ],
+
+  "practice_slots": [
+    {
+      "_id": "slot_margaret_2026-10-24_episode_visit_001",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "day": "2026-10-24",
+      "episodeId": "episode_visit_001",
+      "consumedBy": null,
+      "consumedAt": null
+    }
+  ],
+
+  "memory_trace_ts": [
+    {
+      "at": { "$date": "2026-10-23T10:04:00Z" },
+      "series": {
+        "householdId": "demo-household", "subjectId": "margaret",
+        "episodeId": "episode_visit_001", "modelVersion": "prototype-exponential-v1"
+      },
+      "stabilityDays": 2.5,
+      "estimatedRetention": 1.0,
+      "event": "attempt",
+      "cueLevel": 1,
+      "outcome": "recalled",
+      "attemptId": "attempt_unique_001"
+    },
+    {
+      "at": { "$date": "2026-10-24T02:00:00Z" },
+      "series": {
+        "householdId": "demo-household", "subjectId": "margaret",
+        "episodeId": "episode_visit_001", "modelVersion": "prototype-exponential-v1"
+      },
+      "stabilityDays": 2.5,
+      "estimatedRetention": 0.699,
+      "event": "nightly_sample",
+      "cueLevel": null,
+      "outcome": null,
+      "attemptId": null
+    }
+  ],
+
+  "people": [
+    {
+      "_id": "person_sarah",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "name": "Sarah",
+      "relationship": "daughter",
+      "reviewStatus": "approved"
+    }
+  ],
+
+  "semantic_nodes": [
+    {
+      "_id": "person_sarah",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "nodeType": "person",
+      "label": "Sarah",
+      "aliases": ["Sal", "my daughter"],
+      "attributes": {
+        "relationship": "daughter",
+        "lastSeenReportedAt": { "$date": "2026-10-22T14:30:00Z" },
+        "voiceSample": null
+      },
+      "lifeStatus": "current",
+      "lifeStatusChangedAt": null,
+      "sensitivity": "normal",
+      "disclosure": {
+        "policy": "state_plainly", "script": null,
+        "decidedBy": "carer_jane", "decidedAt": { "$date": "2026-09-30T10:00:00Z" }, "reviewNote": null
+      },
+      "searchText": "Sarah, also called Sal, Margaret's daughter. Visits most Thursdays, usually brings photographs.",
+      "embedding": null,
+      "sourceIds": ["source_caregiver_intake_001"],
+      "confidence": 0.95,
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "hotEdges": [
+        { "edgeId": "edge_sarah_child_of_margaret", "edgeType": "child_of", "toId": "subject_margaret", "toLabel": "Margaret", "weight": 1.0 },
+        { "edgeId": "edge_sarah_frequents_garden", "edgeType": "frequents", "toId": "node_place_margarets_garden", "toLabel": "Back garden", "weight": 0.7 }
+      ],
+      "activation": { "score": 0.88, "lastRetrievedAt": { "$date": "2026-10-24T09:15:02Z" }, "retrievalCount": 214 },
+      "version": 3,
+      "digest": "4c812b7e90a5d3f61c7b0e4a29df6835b1c7e9a4f250d8763e1c9b4a2f05d387",
+      "recordedAt": { "$date": "2026-09-30T09:58:00Z" },
+      "reviewedAt": { "$date": "2026-09-30T10:00:00Z" }
+    },
+    {
+      "_id": "person_albert",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "nodeType": "person",
+      "label": "Albert",
+      "aliases": ["Bert", "my husband"],
+      "attributes": { "relationship": "husband", "lastSeenReportedAt": null, "voiceSample": null },
+      "lifeStatus": "deceased",
+      "lifeStatusChangedAt": { "$date": "2019-03-14T00:00:00Z" },
+      "sensitivity": "grief_sensitive",
+      "disclosure": {
+        "policy": "defer_to_caregiver",
+        "script": "Albert isn't here just now. Would you like to tell me about him? Jane said you have the wedding photograph in the hall.",
+        "decidedBy": "carer_jane",
+        "decidedAt": { "$date": "2026-10-01T11:12:00Z" },
+        "reviewNote": "Agreed with Sarah and the GP: do not state the bereavement unless Margaret states it first. Never volunteer it. Log every time she asks."
+      },
+      "searchText": "Albert, Margaret's husband. Married 1961. Worked on the railways.",
+      "embedding": null,
+      "sourceIds": ["source_caregiver_intake_002"],
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "hotEdges": [
+        { "edgeId": "edge_albert_spouse_of_margaret", "edgeType": "spouse_of", "toId": "subject_margaret", "toLabel": "Margaret", "weight": 1.0 }
+      ],
+      "activation": { "score": 0.41, "lastRetrievedAt": { "$date": "2026-10-21T16:40:00Z" }, "retrievalCount": 37 },
+      "version": 2,
+      "digest": "77ab4c1e90b5d3f62c8b0e4a19df6835b1c7e9a4f250d8763e1c9b4a2f05d388",
+      "recordedAt": { "$date": "2026-09-30T09:59:00Z" },
+      "reviewedAt": { "$date": "2026-10-01T11:12:00Z" }
+    },
+    {
+      "_id": "node_routine_tea_garden_afternoon",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "nodeType": "routine",
+      "label": "Afternoon tea in the garden",
+      "aliases": [],
+      "attributes": { "rrule": "FREQ=WEEKLY;BYDAY=TH", "timeOfDay": "afternoon", "placeId": "node_place_margarets_garden", "participants": ["person_sarah"] },
+      "lifeStatus": "current",
+      "lifeStatusChangedAt": null,
+      "sensitivity": "normal",
+      "disclosure": { "policy": "state_plainly", "script": null, "decidedBy": null, "decidedAt": null, "reviewNote": null },
+      "searchText": "Afternoon tea in the garden routine",
+      "embedding": null,
+      "sourceIds": ["source_caregiver_note_4411", "source_caregiver_note_4102", "source_caregiver_note_3988", "source_caregiver_note_3871"],
+      "confidence": null,
+      "reviewStatus": "draft",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "hotEdges": [],
+      "activation": { "score": 0, "lastRetrievedAt": null, "retrievalCount": 0 },
+      "version": 1,
+      "digest": "b5e2a91c7f403d86021b7e4c9a8d5f36",
+      "recordedAt": { "$date": "2026-10-23T02:10:00Z" },
+      "reviewedAt": null
+    }
+  ],
+
+  "semantic_edges": [
+    {
+      "_id": "edge_sarah_child_of_margaret",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "fromId": "person_sarah",
+      "toId": "subject_margaret",
+      "edgeType": "child_of",
+      "inverseType": "parent_of",
+      "pairId": "pair_sarah_margaret_child",
+      "direction": "forward",
+      "weight": 1.0,
+      "temporal": { "validFrom": { "$date": "1964-06-02T00:00:00Z" }, "validTo": null, "granularity": "day" },
+      "status": "current",
+      "sourceIds": ["source_caregiver_intake_001"],
+      "confidence": 0.98,
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "version": 1,
+      "digest": "1b9e0c4a7f2d5386b1c7e94a0df25863",
+      "recordedAt": { "$date": "2026-09-30T09:58:00Z" }
+    },
+    {
+      "_id": "edge_margaret_parent_of_sarah",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "fromId": "subject_margaret",
+      "toId": "person_sarah",
+      "edgeType": "parent_of",
+      "inverseType": "child_of",
+      "pairId": "pair_sarah_margaret_child",
+      "direction": "reverse",
+      "weight": 1.0,
+      "temporal": { "validFrom": { "$date": "1964-06-02T00:00:00Z" }, "validTo": null, "granularity": "day" },
+      "status": "current",
+      "sourceIds": ["source_caregiver_intake_001"],
+      "confidence": 0.98,
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "version": 1,
+      "digest": "2c0af15b8e3d6497c2d8ea5b1ef36974",
+      "recordedAt": { "$date": "2026-09-30T09:58:00Z" }
+    },
+    {
+      "_id": "edge_margaret_lived_at_oakfield",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "fromId": "subject_margaret",
+      "toId": "node_place_oakfield_road",
+      "edgeType": "lived_at",
+      "inverseType": "located_in",
+      "pairId": "pair_margaret_oakfield_residence",
+      "direction": "forward",
+      "weight": 0.9,
+      "temporal": { "validFrom": { "$date": "1966-01-01T00:00:00Z" }, "validTo": { "$date": "2003-01-01T00:00:00Z" }, "granularity": "year" },
+      "status": "historical",
+      "sourceIds": ["source_caregiver_intake_006"],
+      "confidence": 0.85,
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null,
+      "version": 1,
+      "digest": "3d1bf26c9f4e75a8d3e9fb6c2fa47085",
+      "recordedAt": { "$date": "2026-09-30T10:02:00Z" }
+    }
+  ],
+
+  "memory_links": [
+    {
+      "_id": "link_about_visit001_sarah",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "fromStore": "episodic",
+      "fromId": "episode_visit_001",
+      "toStore": "semantic",
+      "toId": "person_sarah",
+      "linkType": "about",
+      "weight": 0.96,
+      "createdBy": "ingestion",
+      "reviewStatus": "approved",
+      "sourceIds": ["source_caregiver_note_4411"],
+      "confidence": 0.96,
+      "recordedAt": { "$date": "2026-10-22T18:04:13Z" },
+      "reviewedAt": { "$date": "2026-10-22T19:20:00Z" },
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null
+    },
+    {
+      "_id": "link_instantiates_visit001_routine",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "fromStore": "episodic",
+      "fromId": "episode_visit_001",
+      "toStore": "semantic",
+      "toId": "node_routine_tea_garden_afternoon",
+      "linkType": "instantiates",
+      "weight": 0.8,
+      "createdBy": "consolidation",
+      "reviewStatus": "draft",
+      "sourceIds": ["source_caregiver_note_4411"],
+      "confidence": null,
+      "recordedAt": { "$date": "2026-10-23T02:10:00Z" },
+      "reviewedAt": null,
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null
+    },
+    {
+      "_id": "link_contradicts_med_reports",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "fromStore": "episodic",
+      "fromId": "episode_med_report_a",
+      "toStore": "episodic",
+      "toId": "episode_med_report_b",
+      "linkType": "contradicts",
+      "weight": 1.0,
+      "createdBy": "consolidation",
+      "reviewStatus": "approved",
+      "sourceIds": ["source_user_report_7781", "source_caregiver_report_7790"],
+      "confidence": null,
+      "recordedAt": { "$date": "2026-10-23T02:11:00Z" },
+      "reviewedAt": { "$date": "2026-10-23T02:11:00Z" },
+      "isCurrent": true,
+      "supersedes": null,
+      "supersededBy": null
+    }
+  ],
+
+  "procedures": [
+    {
+      "_id": "proc_medication_reminder_v4",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "procedureId": "medication_reminder",
+      "version": 4,
+      "title": "Care-plan medication reminder",
+      "intent": "Deliver an approved medication reminder, record the self-report, escalate on no response.",
+      "riskTier": 2,
+      "trigger": {
+        "kind": "schedule",
+        "match": {
+          "collection": "plans",
+          "filter": { "kind": "medication", "reviewStatus": "approved", "eventStatus": "planned" },
+          "dueField": "dueAt"
+        }
+      },
+      "preconditions": [
+        { "check": "caregiver_approved_plan_exists", "params": {} },
+        { "check": "plan_version_unchanged", "params": {} },
+        { "check": "cooldown_elapsed", "params": { "seconds": 30 } },
+        { "check": "consent_allows_proactive_contact", "params": {} }
+      ],
+      "steps": [
+        { "stepId": "deliver", "toolId": "tool.prompt.deliver", "args": { "template": "medication_v2", "channel": "phone_pwa" }, "onFailure": "retry_then_escalate", "requiresConfirmation": false },
+        { "stepId": "await", "toolId": "tool.task.await_response", "args": { "taskType": "await_medication_response", "windowSeconds": 600 }, "onFailure": "escalate", "requiresConfirmation": false },
+        { "stepId": "record", "toolId": "tool.medication.record_self_report", "args": {}, "onFailure": "escalate", "requiresConfirmation": false }
+      ],
+      "guardrails": {
+        "maxPerDay": 6,
+        "cooldownSeconds": 30,
+        "quietHours": { "start": "22:00", "end": "07:00" },
+        "requiresApprovedSource": true,
+        "forbiddenTopics": ["dose_changes", "diagnosis", "prognosis"]
+      },
+      "escalation": {
+        "ladder": [
+          { "afterSeconds": 600, "contactRole": "primary_caregiver", "channel": "push" },
+          { "afterSeconds": 1800, "contactRole": "secondary", "channel": "sms" }
+        ],
+        "slaSeconds": 1800
+      },
+      "approval": {
+        "status": "active",
+        "approvedBy": "carer_jane",
+        "approvedAt": { "$date": "2026-10-20T08:00:00Z" },
+        "retiredAt": null,
+        "retiredReason": null
+      },
+      "supersedes": "proc_medication_reminder_v3",
+      "digest": "d93a7c1e40b5f28617c4b0e9a2df5836c1b7e94a0df253867c1e9b4a2f05d389",
+      "searchText": "medication reminder care plan escalation self report"
+    }
+  ],
+
+  "tool_registry": [
+    {
+      "_id": "tool.prompt.deliver",
+      "title": "Deliver an approved prompt to the patient device",
+      "inputSchema": { "bsonType": "object", "required": ["template", "channel"] },
+      "sideEffectClass": "notify_patient",
+      "maxRiskTier": 2,
+      "requiresCaregiverApproval": false,
+      "rateLimit": { "perMinute": 2, "perDay": 20 },
+      "reversible": false,
+      "status": "active"
+    },
+    {
+      "_id": "tool.medication.record_self_report",
+      "title": "Record a medication self-report and its daily log entry",
+      "inputSchema": { "bsonType": "object", "required": ["promptId", "action"] },
+      "sideEffectClass": "write_record",
+      "maxRiskTier": 2,
+      "requiresCaregiverApproval": true,
+      "rateLimit": { "perMinute": 2, "perDay": 20 },
+      "reversible": false,
+      "status": "active"
+    },
+    {
+      "_id": "tool.alert.contact_caregiver",
+      "title": "Escalate to a named caregiver contact",
+      "inputSchema": { "bsonType": "object", "required": ["alertId", "contactRole", "channel"] },
+      "sideEffectClass": "contact_human",
+      "maxRiskTier": 3,
+      "requiresCaregiverApproval": false,
+      "rateLimit": { "perMinute": 1, "perDay": 12 },
+      "reversible": false,
+      "status": "active"
+    }
+  ],
+
+  "procedure_runs": [
+    {
+      "_id": "run_01JB2YQ4T0",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "idempotencyKey": "7f0c3b91a4e25d8760c1b4e79a2df583",
+      "procedureId": "medication_reminder",
+      "procedureVersion": 4,
+      "procedureDigest": "d93a7c1e40b5f28617c4b0e9a2df5836c1b7e94a0df253867c1e9b4a2f05d389",
+      "triggerRef": { "store": "procedural", "id": "med_8f21c0" },
+      "decisionTrace": [
+        { "store": "procedural", "collection": "plans", "id": "med_8f21c0", "role": "evidence" },
+        { "store": "safety", "collection": "safety_constraints", "id": "constraint_allergy_penicillin", "role": "filter" },
+        { "store": "safety", "collection": "medication_responses", "id": "medresp_20261022_0800", "role": "context" }
+      ],
+      "preconditionResults": [
+        { "check": "caregiver_approved_plan_exists", "passed": true, "detail": null },
+        { "check": "plan_version_unchanged", "passed": true, "detail": "version 2" },
+        { "check": "cooldown_elapsed", "passed": true, "detail": null },
+        { "check": "consent_allows_proactive_contact", "passed": true, "detail": "consent_2026_09_30_v2" }
+      ],
+      "stepResults": [
+        { "stepId": "deliver", "toolId": "tool.prompt.deliver", "status": "completed", "startedAt": { "$date": "2026-10-24T08:00:00Z" }, "endedAt": { "$date": "2026-10-24T08:00:01Z" }, "error": null },
+        { "stepId": "await", "toolId": "tool.task.await_response", "status": "timed_out", "startedAt": { "$date": "2026-10-24T08:00:01Z" }, "endedAt": { "$date": "2026-10-24T08:10:01Z" }, "error": "no response in 600s" }
+      ],
+      "outcome": "escalated",
+      "vetoedBy": null,
+      "escalatedTo": [{ "alertId": "alert_01JB2YQ8ZK", "contactRole": "primary_caregiver", "channel": "push", "at": { "$date": "2026-10-24T08:10:04Z" } }],
+      "startedAt": { "$date": "2026-10-24T08:00:00Z" },
+      "endedAt": { "$date": "2026-10-24T08:10:05Z" }
+    }
+  ],
+
+  "plans": [
+    {
+      "_id": "med_8f21c0",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "kind": "medication",
+      "triggerType": "time",
+      "label": "Morning tablets",
+      "carePlanRef": "GP care plan 2026-09, morning dose",
+      "eventStart": { "$date": "2026-10-24T08:00:00Z" },
+      "dueAt": { "$date": "2026-10-24T08:00:00Z" },
+      "expiresAt": { "$date": "2026-10-24T08:10:00Z" },
+      "personId": null,
+      "placeId": null,
+      "reviewStatus": "approved",
+      "eventStatus": "planned",
+      "version": 2,
+      "createdAt": { "$date": "2026-10-23T20:00:00Z" },
+      "approvedAt": { "$date": "2026-10-23T20:05:00Z" },
+      "procedureId": "medication_reminder",
+      "procedureVersion": 4
+    }
+  ],
+
+  "prompts": [
+    {
+      "_id": "prompt_med_20261024_0800",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "planId": "med_8f21c0",
+      "planVersion": 2,
+      "kind": "medication",
+      "dedupeKey": "med_8f21c0|2026-10-24T08:00",
+      "message": "Jane's reminder: it's time for your morning tablets. Have you been able to take them?",
+      "status": "pending",
+      "availableAt": { "$date": "2026-10-24T08:00:00Z" },
+      "expiresAt": { "$date": "2026-10-24T08:10:00Z" },
+      "lastResponse": null,
+      "respondedAt": null
+    }
+  ],
+
+  "identity_core": [
+    {
+      "_id": "margaret",
+      "householdId": "demo-household",
+      "preferredName": "Margaret",
+      "legalName": "<encrypted>",
+      "dateOfBirth": "<encrypted>",
+      "pronouns": "she/her",
+      "birthPlace": "Dublin, Ireland",
+      "languages": [
+        { "code": "en-GB", "fluency": "native", "isPreferred": true },
+        { "code": "ga-IE", "fluency": "childhood", "isPreferred": false }
+      ],
+      "communication": {
+        "paceWordsPerMinute": 110, "maxSentenceWords": 12, "prefersYesNo": true,
+        "needsRepetition": true, "hearingSide": "left", "usesHearingAid": true, "readingAbility": "large_print"
+      },
+      "lifeRoles": [
+        { "role": "Nurse, St Mary's Hospital", "from": "1962", "to": "1989", "granularity": "year", "sourceIds": ["source_caregiver_intake_003"] },
+        { "role": "Mother of Sarah and Thomas", "from": "1964", "to": null, "granularity": "year", "sourceIds": ["source_caregiver_intake_001"] }
+      ],
+      "anchorPeople": [
+        { "nodeId": "person_sarah", "relationship": "daughter", "comfortRank": 1 },
+        { "nodeId": "person_thomas", "relationship": "son", "comfortRank": 2 }
+      ],
+      "comfortTopics": [
+        { "label": "the garden", "nodeId": "node_place_margarets_garden", "sourceIds": ["source_caregiver_intake_004"] },
+        { "label": "nursing days", "nodeId": null, "sourceIds": ["source_caregiver_intake_003"] }
+      ],
+      "comfortObjects": [{ "label": "the rosary on the bedside table", "nodeId": null, "sourceIds": ["source_caregiver_intake_005"] }],
+      "comfortMusic": [{ "label": "John McCormack recordings", "nodeId": null, "sourceIds": ["source_caregiver_intake_004"] }],
+      "distressTopics": [
+        { "label": "the house sale", "nodeId": null, "reason": "Causes agitation; unresolved with family.", "decidedBy": "carer_jane", "decidedAt": { "$date": "2026-10-01T11:20:00Z" } }
+      ],
+      "knownLosses": [
+        {
+          "nodeId": "person_albert", "kind": "bereavement", "disclosurePolicy": "defer_to_caregiver",
+          "script": "Albert isn't here just now. Would you like to tell me about him?",
+          "decidedBy": "carer_jane", "decidedAt": { "$date": "2026-10-01T11:12:00Z" }
+        }
+      ],
+      "faithAndCulture": {
+        "tradition": "Roman Catholic",
+        "observances": ["Sunday mass", "Friday abstinence"],
+        "dietaryRules": ["no meat on Fridays"],
+        "notes": "Rosary on the bedside table matters to her.",
+        "sourceIds": ["source_caregiver_intake_005"]
+      },
+      "consentRef": "consent_2026_09_30_v2",
+      "capacityNote": "<encrypted>",
+      "version": 7,
+      "digest": "77ab4c1e90b5d3f62c8b0e4a19df6835b1c7e9a4f250d8763e1c9b4a2f05d390",
+      "approvedBy": "carer_jane",
+      "approvedAt": { "$date": "2026-10-01T11:25:00Z" }
+    }
+  ],
+
+  "life_chapters": [
+    {
+      "_id": "chapter_oakfield_road",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "label": "The Oakfield Road years",
+      "from": { "$date": "1966-01-01T00:00:00Z" },
+      "to": { "$date": "2003-01-01T00:00:00Z" },
+      "granularity": "year",
+      "fuzzyPhrases": ["when the children were small", "before we moved", "the old house", "when I was nursing"],
+      "placeIds": ["node_place_oakfield_road"],
+      "personIds": ["person_sarah", "person_thomas", "person_albert"],
+      "narrative": "Margaret and Albert raised Sarah and Thomas at Oakfield Road. She worked night shifts at St Mary's and kept the garden at the back. The family moved in 2003.",
+      "searchText": "Oakfield Road years. Raising Sarah and Thomas. Night shifts at St Mary's. The back garden. Moved in 2003.",
+      "embedding": null,
+      "sourceIds": ["source_caregiver_intake_006"],
+      "confidence": 0.9,
+      "reviewStatus": "approved",
+      "sensitivity": "normal",
+      "episodeCount": 34,
+      "recordedAt": { "$date": "2026-09-30T10:05:00Z" }
+    }
+  ],
+
+  "preferences": [
+    {
+      "_id": "pref_tea_strong_no_sugar",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "domain": "drink",
+      "label": "Strong tea, milk, no sugar",
+      "polarity": "likes",
+      "strength": 0.9,
+      "validFrom": { "$date": "2026-09-30T00:00:00Z" },
+      "validTo": null,
+      "confirmedBy": "carer_jane",
+      "confirmedAt": { "$date": "2026-10-18T09:00:00Z" },
+      "confirmationCount": 4,
+      "sourceIds": ["source_caregiver_intake_004"],
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "recordedAt": { "$date": "2026-09-30T10:06:00Z" }
+    },
+    {
+      "_id": "pref_radio_off_evening",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "domain": "environment",
+      "label": "Radio off after six; it makes the room feel crowded",
+      "polarity": "requires",
+      "strength": null,
+      "validFrom": { "$date": "2026-10-10T00:00:00Z" },
+      "validTo": null,
+      "confirmedBy": "carer_jane",
+      "confirmedAt": { "$date": "2026-10-10T18:30:00Z" },
+      "confirmationCount": 1,
+      "sourceIds": ["source_caregiver_note_4215"],
+      "reviewStatus": "approved",
+      "isCurrent": true,
+      "supersedes": null,
+      "recordedAt": { "$date": "2026-10-10T18:30:00Z" }
+    }
+  ],
+
+  "personal_records": [
+    {
+      "_id": "b41c9e7f0a2d5386b1c7e94a0df25863c1b7e9a4f250d8763e1c9b4a2f05d387",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "recordId": "intake_nursing_career",
+      "kind": "fact",
+      "personId": null,
+      "title": "Worked as a nurse at St Mary's",
+      "originalText": "Margaret trained at St Mary's and worked there from 1962 until she retired in 1989. She still talks about the night shifts.",
+      "sourceType": "caregiver_report",
+      "photoRef": null,
+      "contact": null,
+      "digest": "5c0b1f8e4a7d2936c1b0e7f4a92d8536",
+      "reviewStatus": "approved",
+      "reviewedAt": { "$date": "2026-09-30T10:04:00Z" },
+      "recordedAt": { "$date": "2026-09-30T10:03:00Z" },
+      "promotedTo": { "collection": "identity_core", "id": "margaret", "at": { "$date": "2026-10-01T11:25:00Z" }, "by": "carer_jane" }
+    }
+  ],
+
+  "daily_logs": [
+    {
+      "_id": "a31f7c0e9b4d2856c1b7e04a9d2f6835b1c7e9a40df253867c1e9b4a2f50d386",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "recordId": "med_report_7f0c3b91",
+      "activity": "medication",
+      "label": "Morning tablets",
+      "outcome": "reported_not_done",
+      "occurredAt": { "$date": "2026-10-22T08:04:00Z" },
+      "sourceType": "user_report",
+      "originalText": "Patient reported not having taken medication in response to a care-plan reminder. This is a self-report; ingestion and dose are not verified.",
+      "sourceRef": "prompt_med_20261022_0800",
+      "digest": "7b2e1c9a4f05d3867c1e9b4a2f50d386",
+      "reviewStatus": "approved",
+      "reviewedAt": { "$date": "2026-10-22T09:00:00Z" },
+      "recordedAt": { "$date": "2026-10-22T08:04:00Z" }
+    }
+  ],
+
+  "safety_constraints": [
+    {
+      "_id": "constraint_allergy_penicillin",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "constraintType": "allergy",
+      "subjectRef": null,
+      "rule": { "substance": "penicillin", "reaction": "reported rash and swelling", "action": "never_suggest_never_confirm" },
+      "severity": "absolute",
+      "legalDirectiveRef": null,
+      "effectiveFrom": { "$date": "2026-09-30T00:00:00Z" },
+      "effectiveTo": null,
+      "authority": { "kind": "clinician", "name": "Dr Okafor", "role": "GP", "recordedAt": { "$date": "2026-09-30T00:00:00Z" }, "documentRef": "gp_summary_2026_09" },
+      "sourceIds": ["source_gp_summary_2026_09"],
+      "reviewStatus": "approved",
+      "version": 1,
+      "supersedes": null,
+      "isCurrent": true,
+      "digest": "e31f0c7a4b925d8613c7e04a9d2f6835"
+    },
+    {
+      "_id": "constraint_do_not_mention_house_sale",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "constraintType": "do_not_mention",
+      "subjectRef": null,
+      "rule": {
+        "nodeIds": [],
+        "phrases": ["house sale", "selling the house", "the solicitor"],
+        "responseScript": "That's something Jane is looking after. Shall we talk about the garden instead?"
+      },
+      "severity": "absolute",
+      "legalDirectiveRef": null,
+      "effectiveFrom": { "$date": "2026-10-01T00:00:00Z" },
+      "effectiveTo": null,
+      "authority": { "kind": "caregiver", "name": "Jane Doyle", "role": "primary_caregiver", "recordedAt": { "$date": "2026-10-01T11:20:00Z" }, "documentRef": null },
+      "sourceIds": ["source_caregiver_intake_007"],
+      "reviewStatus": "approved",
+      "version": 1,
+      "supersedes": null,
+      "isCurrent": true,
+      "digest": "f42a1d8b5c036e9724d8fb15ae247096"
+    }
+  ],
+
+  "care_alerts": [
+    {
+      "_id": "alert_01JB2YQ8ZK",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "idempotencyKey": "7f0c3b91a4e25d8760c1b4e79a2df583",
+      "alertType": "medication_no_response",
+      "severity": "urgent",
+      "state": "acknowledged",
+      "transitions": [
+        { "from": null, "to": "raised", "at": { "$date": "2026-10-24T08:10:00Z" }, "by": "agent", "note": "No response within the 600s window." },
+        { "from": "raised", "to": "notified", "at": { "$date": "2026-10-24T08:10:04Z" }, "by": "system", "note": "push → primary_caregiver" },
+        { "from": "notified", "to": "acknowledged", "at": { "$date": "2026-10-24T08:16:31Z" }, "by": "carer_jane", "note": "Calling her now." }
+      ],
+      "triggerRefs": [
+        { "store": "procedural", "collection": "prompts", "id": "prompt_med_20261024_0800" },
+        { "store": "procedural", "collection": "plans", "id": "med_8f21c0" },
+        { "store": "safety", "collection": "medication_responses", "id": "medresp_20261022_0800" }
+      ],
+      "evidenceSummary": "The 08:00 medication reminder was delivered and had no response by 08:10. On 22 Oct the 08:00 reminder was answered 'not taken'. These are reported states, not verified doses.",
+      "procedureRunId": "run_01JB2YQ4T0",
+      "slaDeadlineAt": { "$date": "2026-10-24T08:40:00Z" },
+      "notifications": [
+        { "contactRole": "primary_caregiver", "contactId": "carer_jane", "channel": "push", "sentAt": { "$date": "2026-10-24T08:10:04Z" }, "deliveredAt": { "$date": "2026-10-24T08:10:09Z" }, "failureReason": null }
+      ],
+      "acknowledgedBy": "carer_jane",
+      "acknowledgedAt": { "$date": "2026-10-24T08:16:31Z" },
+      "resolution": null,
+      "createdAt": { "$date": "2026-10-24T08:10:00Z" }
+    }
+  ],
+
+  "medication_responses": [
+    {
+      "_id": "medresp_20261022_0800",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "promptId": "prompt_med_20261022_0800",
+      "planId": "med_8f21c0",
+      "action": "not_taken",
+      "outcome": "reported_not_done",
+      "sourceType": "user_report",
+      "occurredAt": { "$date": "2026-10-22T08:04:00Z" },
+      "dailyLogId": "a31f7c0e9b4d2856c1b7e04a9d2f6835b1c7e9a40df253867c1e9b4a2f50d386",
+      "dailyLogRecordId": "med_report_7f0c3b91",
+      "caregiverReviewed": true,
+      "procedureRunId": "run_01JB2WX1A9",
+      "contradicts": null
+    }
+  ],
+
+  "symptom_ts": [
+    {
+      "observedAt": { "$date": "2026-10-23T19:40:00Z" },
+      "series": { "householdId": "demo-household", "subjectId": "margaret", "symptomCode": "agitation", "observerKind": "caregiver" },
+      "value": 2,
+      "valueLabel": "restless, pacing, settled after a cup of tea",
+      "observerKind": "caregiver",
+      "sourceId": "source_caregiver_note_4390",
+      "receivedAt": { "$date": "2026-10-23T20:02:00Z" },
+      "note": "Started around dusk. Radio was on."
+    }
+  ],
+
+  "physiology_ts": [
+    {
+      "observedAt": { "$date": "2026-10-24T03:14:00Z" },
+      "series": { "householdId": "demo-household", "subjectId": "margaret", "deviceId": "bed_sensor_01", "metric": "bedOccupancy" },
+      "value": 0,
+      "quality": "ok",
+      "receivedAt": { "$date": "2026-10-24T03:14:06Z" }
+    }
+  ],
+
+  "engagement_ts": [
+    {
+      "at": { "$date": "2026-10-24T08:00:01Z" },
+      "series": { "householdId": "demo-household", "subjectId": "margaret", "channel": "phone_pwa", "eventType": "prompt_delivered" },
+      "promptId": "prompt_med_20261024_0800",
+      "latencyMs": null,
+      "answered": false
+    }
+  ],
+
+  "consent_records": [
+    {
+      "_id": "consent_2026_09_30_v2",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "version": 2,
+      "grantedBy": { "kind": "subject", "name": "<encrypted>", "role": "subject", "evidenceRef": "<encrypted>" },
+      "scopeOfConsent": {
+        "collections": ["episodes", "semantic_nodes", "identity_core", "daily_logs", "medication_responses"],
+        "purposes": ["memory_support", "medication_reminders", "caregiver_reporting"],
+        "recipients": ["carer_jane", "person_sarah", "dr_okafor"]
+      },
+      "proactiveContactAllowed": true,
+      "rehearsalAllowed": true,
+      "dataRetention": { "episodesDays": 1825, "mediaDays": 1825, "tsDays": 365, "auditDays": 2555 },
+      "withdrawnAt": null,
+      "withdrawnBy": null,
+      "supersededBy": null,
+      "recordedAt": { "$date": "2026-09-30T09:40:00Z" },
+      "digest": "0a7c3e91b4d5286071c4b9e7a2df5836"
+    }
+  ],
+
+  "deletion_requests": [
+    {
+      "_id": "delreq_2026_10_20_01",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "requestedBy": "carer_jane",
+      "requestedAt": { "$date": "2026-10-20T14:00:00Z" },
+      "authority": { "kind": "caregiver", "name": "Jane Doyle", "role": "primary_caregiver" },
+      "target": { "kind": "media", "id": "image_bad_upload_02" },
+      "cascade": [
+        { "collection": "memory_images", "filter": { "_id": "image_bad_upload_02" }, "mode": "hard_delete" },
+        { "collection": "engram_images.files", "filter": { "filename": "image_bad_upload_02" }, "mode": "hard_delete" },
+        { "collection": "sources", "filter": { "mediaPtr": "image_bad_upload_02" }, "mode": "tombstone" },
+        { "collection": "audit_events", "filter": { "recordId": "image_bad_upload_02" }, "mode": "retain_with_reason" }
+      ],
+      "retainedForReason": [
+        { "collection": "audit_events", "reason": "Hash chain integrity; payload tombstoned, digest preserved." }
+      ],
+      "state": "completed",
+      "executionLog": [
+        { "collection": "memory_images", "deleted": 1, "at": { "$date": "2026-10-20T14:02:00Z" } },
+        { "collection": "sources", "tombstoned": 1, "at": { "$date": "2026-10-20T14:02:01Z" } }
+      ]
+    }
+  ],
+
+  "audit_events": [
+    {
+      "_id": "audit_4f1c9b02",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "action": "episode_approved",
+      "recordId": "episode_visit_001",
+      "detail": { "sourceCount": 3, "inspected": true },
+      "at": { "$date": "2026-10-22T19:20:00Z" },
+      "actor": { "kind": "caregiver", "id": "carer_jane", "credentialRef": "admin_key_2026_09" },
+      "actorRole": "primary_caregiver",
+      "seq": 418,
+      "prevDigest": "b7e1c9a40df253867c1e9b4a2f05d3861b7e9a4f250d8763e1c9b4a2f05d3871",
+      "digest": "c82f0d1b5a9e4376d2c8fb16ae357081c92e0d4b6a71f385d2c8fb16ae357082",
+      "riskTier": 1
+    },
+    {
+      "_id": "audit_4f1c9b7d",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "action": "alert_raised",
+      "recordId": "alert_01JB2YQ8ZK",
+      "detail": { "alertType": "medication_no_response", "severity": "urgent", "triggerRefs": 3 },
+      "at": { "$date": "2026-10-24T08:10:00Z" },
+      "actor": { "kind": "agent", "id": "companion", "credentialRef": null },
+      "actorRole": "agent",
+      "seq": 455,
+      "prevDigest": "d93b1e2c6a0f4875e3d9ac27bf468192",
+      "digest": "ea04c2f37b15d986f4e0bd38c0579203",
+      "riskTier": 2
+    }
+  ],
+
+  "audit_counters": [
+    {
+      "_id": "9c1b7e4a0df253867c1e9b4a2f05d386",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "seq": 455,
+      "lastDigest": "ea04c2f37b15d986f4e0bd38c0579203"
+    }
+  ],
+
+  "conversation_sessions": [
+    {
+      "_id": "wsession_2026-10-24T09:12Z_margaret",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "channel": "voice",
+      "initiatedBy": "patient",
+      "startedAt": { "$date": "2026-10-24T09:12:04Z" },
+      "endedAt": { "$date": "2026-10-24T09:21:30Z" },
+      "durationMs": 566000,
+      "turnCount": 14,
+      "patientTurnCount": 7,
+      "procedureRunIds": ["run_01JB2YQ4T0"],
+      "summaryEpisodeId": "episode_conversation_20261024_0912",
+      "signals": {
+        "repeatedQuestionCount": 3,
+        "distressReports": 0,
+        "safetyVetoes": 1,
+        "escalations": 0,
+        "scriptedDisclosures": 0,
+        "retrievalFailures": 1
+      },
+      "consentRef": "consent_2026_09_30_v2",
+      "modelRefs": [{ "name": "gemini-4-argon", "version": "2026-09", "turns": 7 }],
+      "closeReason": "idle_timeout",
+      "redacted": false
+    }
+  ],
+
+  "conversation_turns": [
+    {
+      "_id": "turn_wsession_2026-10-24T09:12Z_margaret_000004",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "seq": 4,
+      "role": "patient",
+      "epistemic": "observed",
+      "text": "Is Sarah coming today?",
+      "startedAt": { "$date": "2026-10-24T09:15:02Z" },
+      "endedAt": { "$date": "2026-10-24T09:15:04Z" },
+      "transcript": {
+        "engine": "whisper-large-v3", "version": "2026-04", "language": "en-GB",
+        "confidence": 0.91, "isFinal": true, "partialCount": 6, "alternatives": []
+      },
+      "audio": { "storage": "none", "ref": null, "bytes": 0, "durationMs": 2100, "retainUntil": null },
+      "sourceId": "source_9ee9e3a1c4b70d852f3e9a0c7b14d638e5a2c9f401b7d386e2c5a9b4f10d7e83",
+      "groundedOn": [],
+      "disclosure": null,
+      "safety": { "precheck": "pass", "vetoConstraintId": null, "alertIds": [] },
+      "model": null,
+      "latency": null,
+      "inferenceIds": ["inf_576afee434a7fc1b0d9e2a4c7f8530169b4e1c7a0df25386c1b7e94a2f05d387"],
+      "caregiverAnnotation": null,
+      "redacted": false,
+      "redactionRef": null
+    },
+    {
+      "_id": "turn_wsession_2026-10-24T09:12Z_margaret_000005",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "seq": 5,
+      "role": "companion",
+      "epistemic": "generated",
+      "text": "Sarah isn't due today \u2014 she came on Thursday and you had tea in the garden. Jane has her down for this Thursday again.",
+      "startedAt": { "$date": "2026-10-24T09:15:05Z" },
+      "endedAt": { "$date": "2026-10-24T09:15:06Z" },
+      "transcript": null,
+      "audio": { "storage": "none", "ref": null, "bytes": 0, "durationMs": 0, "retainUntil": null },
+      "sourceId": null,
+      "groundedOn": [
+        { "store": "episodic", "collection": "episodes", "id": "episode_visit_001", "role": "evidence" },
+        { "store": "procedural", "collection": "plans", "id": "plan_visit_sarah_20261029", "role": "evidence" },
+        { "store": "semantic", "collection": "semantic_nodes", "id": "person_sarah", "role": "context" },
+        { "store": "safety", "collection": "safety_constraints", "id": "constraint_do_not_mention_house_sale", "role": "filter" }
+      ],
+      "disclosure": { "policy": "state_plainly", "nodeId": "person_sarah", "scriptUsed": false, "constraintIds": [] },
+      "safety": { "precheck": "pass", "vetoConstraintId": null, "alertIds": [] },
+      "model": {
+        "name": "gemini-4-argon", "version": "2026-09",
+        "promptDigest": "c1b7e94a0df253861c7b0e4a29df6835",
+        "temperature": 0.2, "tokensIn": 1844, "tokensOut": 34
+      },
+      "latency": { "retrievalMs": 412, "generationMs": 760, "firstTokenMs": 240, "totalMs": 1198 },
+      "inferenceIds": [],
+      "caregiverAnnotation": null,
+      "redacted": false,
+      "redactionRef": null
+    },
+    {
+      "_id": "turn_wsession_2026-10-24T09:12Z_margaret_000009",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "seq": 9,
+      "role": "companion",
+      "epistemic": "generated",
+      "text": "That's something Jane is looking after. Shall we talk about the garden instead?",
+      "startedAt": { "$date": "2026-10-24T09:18:12Z" },
+      "endedAt": { "$date": "2026-10-24T09:18:13Z" },
+      "transcript": null,
+      "audio": { "storage": "none", "ref": null, "bytes": 0, "durationMs": 0, "retainUntil": null },
+      "sourceId": null,
+      "groundedOn": [
+        { "store": "safety", "collection": "safety_constraints", "id": "constraint_do_not_mention_house_sale", "role": "veto" },
+        { "store": "safety", "collection": "safety_constraints", "id": "constraint_do_not_mention_house_sale", "role": "script" }
+      ],
+      "disclosure": { "policy": "redirect", "nodeId": null, "scriptUsed": true,
+                      "constraintIds": ["constraint_do_not_mention_house_sale"] },
+      "safety": { "precheck": "veto", "vetoConstraintId": "constraint_do_not_mention_house_sale", "alertIds": [] },
+      "model": { "name": "scripted", "version": "constraint_response", "promptDigest": null,
+                 "temperature": null, "tokensIn": 0, "tokensOut": 0 },
+      "latency": { "retrievalMs": 0, "generationMs": 0, "firstTokenMs": 4, "totalMs": 9 },
+      "inferenceIds": [],
+      "caregiverAnnotation": { "flag": "good", "note": "Exactly right. Thank you.",
+                               "by": "carer_jane", "at": { "$date": "2026-10-24T19:40:00Z" } },
+      "redacted": false,
+      "redactionRef": null
+    }
+  ],
+
+  "inferences": [
+    {
+      "_id": "inf_576afee434a7fc1b0d9e2a4c7f8530169b4e1c7a0df25386c1b7e94a2f05d387",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "inferenceType": "routine_candidate",
+      "claim": { "label": "Afternoon tea in the garden", "rrule": "FREQ=WEEKLY;BYDAY=TH", "timeOfDay": "afternoon" },
+      "claimDigest": "9c4b1e70a2f5d38617c4b0e9a2df5836",
+      "epistemicStatus": "corroborated",
+      "confidence": 0.72,
+      "calibration": "uncalibrated",
+      "visibility": "caregiver_only",
+      "basis": [
+        { "store": "episodic", "collection": "conversation_turns", "id": "turn_wsession_2026-10-24T09:12Z_margaret_000004" },
+        { "store": "episodic", "collection": "episodes", "id": "episode_visit_001" },
+        { "store": "episodic", "collection": "episodes", "id": "episode_visit_019" },
+        { "store": "episodic", "collection": "episodes", "id": "episode_visit_027" }
+      ],
+      "observationCount": 4,
+      "firstObservedAt": { "$date": "2026-10-01T15:02:00Z" },
+      "lastObservedAt": { "$date": "2026-10-24T09:15:02Z" },
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "turnId": "turn_wsession_2026-10-24T09:12Z_margaret_000004",
+      "model": { "name": "gemini-4-argon", "version": "2026-09", "promptDigest": "a71b4c9e205d38f6" },
+      "promotion": {
+        "state": "proposed", "targetCollection": "semantic_nodes", "targetId": null,
+        "decidedBy": null, "decidedAt": null, "reason": null
+      },
+      "contradicts": [],
+      "recordedAt": { "$date": "2026-10-01T15:02:00Z" }
+    },
+    {
+      "_id": "inf_8b31c0f74e2a95d6103b7e4c9fa85206d1b7e94a0df253867c1e9b4a2f05d391",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "inferenceType": "orientation_signal",
+      "claim": {
+        "signal": "repeated_question",
+        "topic": "sarah_visit",
+        "occurrences": 5,
+        "windowStart": { "$date": "2026-10-24T09:08:00Z" },
+        "windowEnd": { "$date": "2026-10-24T09:18:00Z" }
+      },
+      "claimDigest": "3f0a9c1b7e4d2586c1b0e7f4a92d8536",
+      "epistemicStatus": "inferred",
+      "confidence": null,
+      "calibration": "uncalibrated",
+      "visibility": "caregiver_only",
+      "basis": [
+        { "store": "episodic", "collection": "conversation_turns", "id": "turn_wsession_2026-10-24T09:12Z_margaret_000002" },
+        { "store": "episodic", "collection": "conversation_turns", "id": "turn_wsession_2026-10-24T09:12Z_margaret_000004" },
+        { "store": "episodic", "collection": "conversation_turns", "id": "turn_wsession_2026-10-24T09:12Z_margaret_000006" }
+      ],
+      "observationCount": 5,
+      "firstObservedAt": { "$date": "2026-10-24T09:08:40Z" },
+      "lastObservedAt": { "$date": "2026-10-24T09:18:10Z" },
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "turnId": "turn_wsession_2026-10-24T09:12Z_margaret_000006",
+      "model": null,
+      "promotion": {
+        "state": "none", "targetCollection": null, "targetId": null,
+        "decidedBy": null, "decidedAt": null, "reason": null
+      },
+      "contradicts": [],
+      "recordedAt": { "$date": "2026-10-24T09:08:40Z" },
+      "_note": "Not in PROMOTABLE. It is shown to the caregiver as a count with timestamps and has nowhere to be promoted to: there is no field anywhere in this schema that stores a conclusion about her cognition."
+    },
+    {
+      "_id": "inf_c04f2a8b5e1d7396204c8fb37ae15920d1b7e94a0df253867c1e9b4a2f05d392",
+      "householdId": "demo-household",
+      "subjectId": "margaret",
+      "inferenceType": "intent",
+      "claim": { "intent": "ask_upcoming_visit", "entities": ["person_sarah"] },
+      "claimDigest": "7e2b0d9a4c1f5386b1c7e04a9d2f6835",
+      "epistemicStatus": "inferred",
+      "confidence": 0.88,
+      "calibration": "uncalibrated",
+      "visibility": "caregiver_only",
+      "basis": [
+        { "store": "episodic", "collection": "conversation_turns", "id": "turn_wsession_2026-10-24T09:12Z_margaret_000004" }
+      ],
+      "observationCount": 1,
+      "firstObservedAt": { "$date": "2026-10-24T09:15:02Z" },
+      "lastObservedAt": { "$date": "2026-10-24T09:15:02Z" },
+      "sessionId": "wsession_2026-10-24T09:12Z_margaret",
+      "turnId": "turn_wsession_2026-10-24T09:12Z_margaret_000004",
+      "model": { "name": "gemini-4-argon", "version": "2026-09", "promptDigest": "b2c8e04a9d2f6835" },
+      "promotion": {
+        "state": "none", "targetCollection": null, "targetId": null,
+        "decidedBy": null, "decidedAt": null, "reason": null
+      },
+      "contradicts": [],
+      "recordedAt": { "$date": "2026-10-24T09:15:02Z" },
+      "expiresAt": { "$date": "2026-11-23T09:15:02Z" },
+      "_note": "Routing diagnostic. Carries expiresAt because it is low-stakes; clinical-adjacent types never receive that field, so the TTL monitor cannot reach them."
+    }
+  ],
+
+  "ts_dedupe": [
+    {
+      "_id": "ts_4b1c7e9a0df253867c1e9b4a2f05d386",
+      "series": "{\"householdId\":\"demo-household\",\"subjectId\":\"margaret\",\"episodeId\":\"episode_visit_001\",\"modelVersion\":\"prototype-exponential-v1\"}",
+      "sourceEventId": "attempt_unique_001",
+      "expiresAt": { "$date": "2026-11-22T10:04:00Z" }
+    }
+  ]
+}

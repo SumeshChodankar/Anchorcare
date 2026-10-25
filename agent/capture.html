@@ -1,0 +1,1983 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnchorCare — Ambient Cognitive Ingestion & Companion Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #090a0d; --card: #121318; --card-hover: #171920; --border: #22242e;
+    --border-focus: #3b3f54; --ink: #f8fafc; --quiet: #94a3b8; --faint: #64748b;
+    --primary: #6366f1; --primary-hover: #4f46e5; --primary-glow: rgba(99, 102, 241, 0.22);
+    --live: #10b981; --live-glow: rgba(16, 185, 129, 0.25);
+    --alert: #f43f5e; --alert-glow: rgba(244, 63, 94, 0.25);
+    --warn: #f59e0b;
+    --companion-bg: linear-gradient(135deg, rgba(30, 27, 75, 0.7) 0%, rgba(20, 20, 32, 0.9) 100%);
+    --companion-border: #4338ca;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Plus Jakarta Sans", -apple-system, sans-serif;
+    min-height: 100vh; padding: 24px 16px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  main { width: 100%; max-width: 740px; }
+
+  /* HEADER */
+  header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 22px; flex-wrap: wrap; gap: 12px;
+  }
+  .brand-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3);
+    padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600;
+    color: #a5b4fc; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  h1 { font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em; color: #fff; }
+  .sub { color: var(--quiet); font-size: 13.5px; margin: 4px 0 0; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* GRID CARDS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; position: relative;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .card:hover { border-color: var(--border-focus); }
+
+  /* GEOFENCE RADAR WIDGET */
+  .radar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .radar-title { font-size: 13px; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 7px; }
+  .radar-display {
+    display: flex; align-items: center; gap: 14px; background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 12px;
+  }
+  .radar-circle {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 1.5px dashed var(--live); display: flex; align-items: center; justify-content: center;
+    position: relative; flex-shrink: 0; background: rgba(16, 185, 129, 0.05);
+  }
+  .radar-circle.outside { border-color: var(--alert); background: rgba(244, 63, 94, 0.08); }
+  .radar-blip {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--live);
+    box-shadow: 0 0 10px var(--live); transition: all 0.3s ease;
+  }
+  .radar-circle.outside .radar-blip {
+    background: var(--alert); box-shadow: 0 0 12px var(--alert);
+    transform: translate(12px, -12px); animation: alertPulse 1.2s infinite;
+  }
+  .radar-info { flex: 1; }
+  .radar-state { font-size: 13.5px; font-weight: 600; color: #f1f5f9; }
+  .radar-desc { font-size: 12px; color: var(--quiet); margin-top: 2px; }
+
+  /* AUDIO VAD METER */
+  .vad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .vad-title { font-size: 13px; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 7px; }
+  .spectrum-container {
+    display: flex; align-items: flex-end; gap: 3px; height: 38px;
+    padding: 6px 8px; background: rgba(0,0,0,0.25); border-radius: 8px; margin: 8px 0;
+  }
+  .spectrum-bar {
+    flex: 1; background: var(--border-focus); border-radius: 2px;
+    height: 15%; transition: height 0.08s ease-out, background 0.15s;
+  }
+  .spectrum-bar.active { background: var(--live); box-shadow: 0 0 6px var(--live-glow); }
+  .spectrum-bar.spike { background: var(--alert); box-shadow: 0 0 8px var(--alert-glow); }
+
+  /* CAREGIVER ALERT BANNER */
+  .alert-banner {
+    display: none; background: rgba(244, 63, 94, 0.12);
+    border: 1px solid rgba(244, 63, 94, 0.45); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 16px; animation: alertPulse 2s infinite;
+  }
+  .alert-banner.active { display: block; }
+  @keyframes alertPulse {
+    0%, 100% { border-color: rgba(244, 63, 94, 0.4); box-shadow: 0 0 0 rgba(244,63,94,0); }
+    50% { border-color: rgba(244, 63, 94, 0.9); box-shadow: 0 0 18px rgba(244,63,94,0.3); }
+  }
+  .alert-title { color: #fb7185; font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .alert-desc { font-size: 13px; color: #fecdd3; margin-top: 4px; line-height: 1.45; }
+  .alert-meta {
+    font-family: "JetBrains Mono", monospace; font-size: 11px; color: #fda4af;
+    opacity: 0.9; margin-top: 6px;
+  }
+
+  /* COMPANION MAIN STAGE CARD */
+  .companion-card {
+    background: var(--companion-bg); border: 1px solid var(--companion-border);
+    border-radius: 14px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 8px 28px rgba(30, 27, 75, 0.4);
+    position: relative; overflow: hidden;
+  }
+  .companion-card::before {
+    content: ""; position: absolute; top: -50px; right: -50px; width: 140px; height: 140px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .companion-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .companion-avatar { display: flex; align-items: center; gap: 12px; }
+  
+  /* AI AGENT ORB & DANCING VOICE WAVES */
+  .ai-orb {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #818cf8, #4f46e5 65%, #1e1b4b);
+    display: flex; align-items: center; justify-content: center; gap: 3.5px;
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.45);
+    position: relative; flex-shrink: 0; transition: all 0.3s ease;
+  }
+  .ai-orb.thinking {
+    background: radial-gradient(circle at 35% 35%, #fbbf24, #d97706 65%, #451a03);
+    box-shadow: 0 0 22px rgba(245, 158, 11, 0.65);
+    animation: orbSpin 2.5s linear infinite;
+  }
+  .ai-orb.speaking {
+    background: radial-gradient(circle at 35% 35%, #38bdf8, #6366f1 65%, #312e81);
+    box-shadow: 0 0 28px rgba(56, 189, 248, 0.75);
+    animation: orbPulse 0.7s ease-in-out infinite alternate;
+  }
+  @keyframes orbSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  @keyframes orbPulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 16px rgba(56, 189, 248, 0.5); }
+    100% { transform: scale(1.08); box-shadow: 0 0 32px rgba(99, 102, 241, 0.85); }
+  }
+  .orb-wave {
+    width: 3px; height: 12px; background: #ffffff; border-radius: 2px;
+    transition: height 0.12s ease;
+  }
+  .ai-orb.speaking .orb-wave:nth-child(1) { animation: waveDance 0.55s ease-in-out infinite alternate; }
+  .ai-orb.speaking .orb-wave:nth-child(2) { animation: waveDance 0.38s ease-in-out infinite 0.12s alternate; }
+  .ai-orb.speaking .orb-wave:nth-child(3) { animation: waveDance 0.48s ease-in-out infinite 0.22s alternate; }
+  .ai-orb.speaking .orb-wave:nth-child(4) { animation: waveDance 0.62s ease-in-out infinite 0.16s alternate; }
+  @keyframes waveDance { 0% { height: 6px; } 100% { height: 24px; } }
+
+  .avatar-meta { font-size: 13.5px; font-weight: 600; color: #e0e7ff; }
+  .avatar-state { font-size: 11.5px; color: #a5b4fc; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--quiet); }
+  .dot.live { background: var(--live); box-shadow: 0 0 8px var(--live); }
+  .dot.thinking { background: var(--warn); box-shadow: 0 0 8px var(--warn); animation: pulse 1s infinite; }
+  .dot.speaking { background: #38bdf8; box-shadow: 0 0 12px #38bdf8; animation: pulse 0.6s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.15); } }
+
+  .companion-bubble {
+    background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px; padding: 16px 18px; font-size: 15.5px; line-height: 1.55;
+    color: #f8fafc; font-weight: 500; min-height: 64px;
+    display: flex; align-items: center;
+  }
+  .companion-bubble.thinking { color: #94a3b8; font-style: italic; }
+
+  .companion-bottom {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 12px; flex-wrap: wrap; gap: 8px;
+  }
+  .grounding-tag {
+    font-family: "JetBrains Mono", monospace; font-size: 11px; color: #c7d2fe;
+    background: rgba(99, 102, 241, 0.15); padding: 3px 8px; border-radius: 6px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+  }
+
+  /* BUTTONS & SCENARIOS DOCK */
+  .section-label {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--faint); margin: 0 0 8px 4px;
+  }
+  .scenarios-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px;
+    margin-bottom: 20px;
+  }
+  .scenario-btn {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; text-align: left; cursor: pointer; color: var(--ink);
+    display: flex; flex-direction: column; gap: 4px; transition: all 0.15s ease;
+  }
+  .scenario-btn:hover {
+    border-color: var(--border-focus); background: var(--card-hover);
+    transform: translateY(-1px);
+  }
+  .scenario-btn.danger-btn { border-color: rgba(244, 63, 94, 0.3); }
+  .scenario-btn.danger-btn:hover { border-color: var(--alert); background: rgba(244, 63, 94, 0.08); }
+  .scenario-title { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .scenario-quote { font-size: 12px; color: var(--quiet); }
+
+  /* TIMELINE */
+  .timeline-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .timeline-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; margin-bottom: 18px;
+  }
+  .timeline-scroll {
+    max-height: 380px; overflow-y: auto; display: flex; flex-direction: column;
+    gap: 12px; padding-right: 4px; scroll-behavior: smooth;
+  }
+  .timeline-scroll::-webkit-scrollbar { width: 6px; }
+  .timeline-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .chat-row { display: flex; flex-direction: column; gap: 4px; animation: slideUp 0.2s ease; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .chat-row.patient { align-self: flex-start; max-width: 88%; }
+  .chat-row.companion { align-self: flex-start; max-width: 94%; }
+  .chat-row.caregiver { align-self: flex-start; max-width: 90%; }
+  .chat-row.other { align-self: flex-start; max-width: 88%; }
+  .chat-row.system { align-self: stretch; max-width: 100%; }
+
+  .chat-meta { font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 6px; }
+  .chat-meta strong { color: var(--quiet); font-weight: 600; }
+
+  .chat-content { padding: 10px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.5; }
+  .chat-row.patient .chat-content {
+    background: #1e2029; border: 1px solid #2a2c3a; color: #f1f5f9;
+  }
+  .chat-row.companion .chat-content {
+    background: rgba(49, 46, 129, 0.35); border: 1px solid rgba(99, 102, 241, 0.3); color: #e0e7ff;
+  }
+  .chat-row.caregiver .chat-content {
+    background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.35); color: #bae6fd;
+  }
+  .chat-row.other .chat-content {
+    background: rgba(100, 116, 139, 0.18); border: 1px solid rgba(100, 116, 139, 0.3); color: #cbd5e1;
+  }
+  .chat-row.system .chat-content {
+    background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border);
+    color: var(--quiet); font-size: 12px;
+  }
+
+  /* INPUT DOCK (TEXT + MIC) */
+  .input-dock {
+    display: flex; gap: 8px; align-items: center; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; padding: 6px 8px 6px 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  }
+  .input-dock:focus-within { border-color: var(--primary); box-shadow: 0 0 16px var(--primary-glow); }
+  .text-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: #fff; font-family: inherit; font-size: 14px;
+  }
+  .text-input::placeholder { color: var(--faint); }
+  .btn-icon {
+    background: #1e2029; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--ink); padding: 7px 12px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; font-size: 13px; font-weight: 500;
+    transition: all 0.15s ease;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .btn-icon:hover { background: #262936; border-color: var(--border-focus); }
+  .btn-primary {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+    padding: 7px 14px; white-space: nowrap; flex-shrink: 0;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-recording {
+    background: rgba(16, 185, 129, 0.18); border-color: rgba(16, 185, 129, 0.5);
+    color: #34d399; animation: livePulse 1.4s infinite;
+  }
+  @keyframes livePulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(16, 185, 129, 0); }
+    50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
+  }
+
+  .empty-state { color: var(--faint); text-align: center; padding: 36px 16px; font-size: 13.5px; }
+  footer { color: var(--faint); font-size: 12px; margin-top: 24px; text-align: center; line-height: 1.6; }
+
+  /* 24/7 VOICE ACTIVATOR HERO BANNER */
+  .voice-activator-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(16, 185, 129, 0.14) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 14px; padding: 14px 18px; margin-bottom: 20px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    cursor: pointer; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.18);
+    transition: all 0.2s ease;
+  }
+  .voice-activator-banner:hover {
+    border-color: rgba(99, 102, 241, 0.7);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(16, 185, 129, 0.2) 100%);
+    transform: translateY(-1px);
+  }
+  .voice-activator-banner.active {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(6, 78, 59, 0.25) 100%);
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 24px rgba(16, 185, 129, 0.22);
+  }
+  .voice-activator-content { display: flex; align-items: center; gap: 14px; }
+  .voice-activator-icon {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(99, 102, 241, 0.25); border: 1.5px solid rgba(99, 102, 241, 0.5);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    flex-shrink: 0; transition: all 0.3s ease;
+  }
+  .voice-activator-banner.active .voice-activator-icon {
+    background: rgba(16, 185, 129, 0.25); border-color: rgba(16, 185, 129, 0.6);
+    animation: livePulse 1.5s infinite;
+  }
+  .voice-activator-title { font-size: 14.5px; font-weight: 700; color: #f8fafc; }
+  .voice-activator-banner.active .voice-activator-title { color: #34d399; }
+  .voice-activator-sub { font-size: 12.5px; color: #cbd5e1; margin-top: 3px; }
+  .voice-activator-btn {
+    background: var(--primary); border: none; border-radius: 8px; color: #fff;
+    padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+    flex-shrink: 0; transition: all 0.15s ease;
+  }
+  .voice-activator-btn:hover { background: var(--primary-hover); }
+  .voice-activator-banner.active .voice-activator-btn {
+    background: rgba(16, 185, 129, 0.22); border: 1px solid rgba(16, 185, 129, 0.45);
+    color: #34d399;
+  }
+
+  /* Multi-Agent Cockpit & Speaker Bar */
+  .multi-agent-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; margin-bottom: 14px;
+  }
+  .agent-chip {
+    background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px; padding: 7px 11px; display: flex; align-items: center; gap: 8px; font-size: 11.5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .speaker-selector-bar {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  .speaker-quick-btn {
+    font-size: 11px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: #cbd5e1;
+    transition: all 0.15s ease;
+  }
+  .speaker-quick-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .speaker-quick-btn.active {
+    background: rgba(56, 189, 248, 0.2); border-color: rgba(56, 189, 248, 0.5); color: #7dd3fc; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<main>
+  <!-- ALWAYS-ACTIVE VOICE ACTIVATOR BANNER -->
+  <div class="voice-activator-banner" id="voiceActivatorBanner" title="Click to unlock continuous microphone capture and audible responses">
+    <div class="voice-activator-content">
+      <div class="voice-activator-icon" id="activatorIcon">🎙️</div>
+      <div class="voice-activator-text">
+        <div class="voice-activator-title" id="activatorTitle">Click Anywhere to Activate 24/7 Voice Assistant & Mic</div>
+        <div class="voice-activator-sub" id="activatorSub">Enables continuous background listening and loud, clear voice answers from AnchorCare.</div>
+      </div>
+    </div>
+    <button type="button" class="voice-activator-btn" id="activateVoiceNowBtn">⚡ Turn On Voice Assistant</button>
+  </div>
+
+  <header>
+    <div>
+      <div class="brand-badge">⚡ Live Edge Cognitive Loop</div>
+      <h1>AnchorCare Ambient Console</h1>
+      <p class="sub">Wandering Prevention, Geofence Tracking & Grounded Companion Reasoning</p>
+    </div>
+    <div class="header-actions">
+      <button type="button" class="btn-icon" id="toggleTtsBtn" title="Toggle automatic speech narration" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.45); color: #34d399; font-weight: 600;">🔊 AI Voice: ON</button>
+      <button type="button" class="btn-icon" id="toggleHandsFreeBtn" title="Automatically listen after agent answers" style="color: #cbd5e1;">💬 Hands-Free Chat: OFF</button>
+      <button type="button" class="btn-icon" id="toggleModeBtn" title="Switch between Ambient 24/7 Mic and Push-to-Talk" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.45); color: #34d399; font-weight: 600;">🎙️ Ambient Mic: ON (24/7)</button>
+    </div>
+  </header>
+
+  <!-- MULTI-AGENT ARCHITECTURE COCKPIT -->
+  <div class="multi-agent-grid">
+    <div class="agent-chip" style="border-color: rgba(99, 102, 241, 0.4);">
+      <span style="font-size: 15px;">👂</span>
+      <div style="line-height: 1.25;">
+        <div style="font-weight: 700; color: #a5b4fc;">Agent 1: Acoustic Ear</div>
+        <div style="color: var(--quiet); font-size: 10.5px;">Gemini 4 Argon Diarizer</div>
+      </div>
+      <span class="dot live" style="margin-left: auto;"></span>
+    </div>
+    <div class="agent-chip" style="border-color: rgba(16, 185, 129, 0.4);">
+      <span style="font-size: 15px;">🧠</span>
+      <div style="line-height: 1.25;">
+        <div style="font-weight: 700; color: #6ee7b7;">Agent 2: Episodic Memory</div>
+        <div style="color: var(--quiet); font-size: 10.5px;">Atlas Recall & Policy Guard</div>
+      </div>
+      <span class="dot live" style="margin-left: auto;"></span>
+    </div>
+    <div class="agent-chip" style="border-color: rgba(56, 189, 248, 0.4);">
+      <span style="font-size: 15px;">🗣️</span>
+      <div style="line-height: 1.25;">
+        <div style="font-weight: 700; color: #7dd3fc;">Agent 3: Neural Voice</div>
+        <div style="color: var(--quiet); font-size: 10.5px;">Grounded Audio Synthesizer</div>
+      </div>
+      <span class="dot live" style="margin-left: auto;"></span>
+    </div>
+    <div class="agent-chip" style="border-color: rgba(244, 63, 94, 0.4);">
+      <span style="font-size: 15px;">🛡️</span>
+      <div style="line-height: 1.25;">
+        <div style="font-weight: 700; color: #fda4af;">Agent 4: Care Escalation</div>
+        <div style="color: var(--quiet); font-size: 10.5px;">50m Geofence & Auto-Call</div>
+      </div>
+      <span class="dot live" style="margin-left: auto;"></span>
+    </div>
+  </div>
+
+  <!-- SPEAKER PROFILE IDENTITY DOCK -->
+  <div class="speaker-selector-bar">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 15px;">👤</span>
+      <span style="font-size: 12px; font-weight: 700; color: #f8fafc;">Primary Voice / Speaker Name:</span>
+      <input type="text" id="primarySpeakerInput" value="Sumesh" style="background: rgba(15,23,42,0.8); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: #38bdf8; font-weight: 600; font-size: 12px; width: 110px;" />
+      <button type="button" class="btn-icon" id="enrollVoiceBtn" style="font-size: 11px; padding: 3px 8px;">🎙️ Enrol my voice</button>
+      <span id="enrollStatus" style="font-size: 11px; color: var(--quiet);">Voice not enrolled: spoken personal questions are not answered</span>
+      <button type="button" class="btn-icon" id="enrollRemoveBtn" style="font-size: 11px; padding: 3px 8px; display: none;">Remove</button>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <span style="font-size: 11px; color: var(--quiet);">Simulate / Match Voice:</span>
+      <button type="button" class="speaker-quick-btn active" data-name="Sumesh">Sumesh (You)</button>
+      <button type="button" class="speaker-quick-btn" data-name="Margaret">Margaret (Patient)</button>
+      <button type="button" class="speaker-quick-btn" data-name="Jane">Jane (Caregiver)</button>
+      <button type="button" class="speaker-quick-btn" data-name="David Lee">David Lee (Visitor)</button>
+      <button type="button" class="speaker-quick-btn" data-name="Others">Others</button>
+    </div>
+  </div>
+
+  <!-- URGENT CAREGIVER ALERT BANNER -->
+  <div class="alert-banner" id="alertBanner">
+    <div class="alert-title">
+      <span>🚨</span>
+      <span>URGENT CAREGIVER ALERT DISPATCHED</span>
+    </div>
+    <div class="alert-desc" id="alertDesc">
+      Wandering & distress detected outside safe boundary. Caregiver (Jane) notified.
+    </div>
+    <div class="alert-meta" id="alertMeta">
+      SLA Response Deadline: 30 minutes · Logged to MongoDB care_alerts & active_tasks
+    </div>
+  </div>
+
+  <!-- COMPANION MAIN STAGE CARD -->
+  <div class="companion-card" id="companionCard">
+    <div class="companion-top">
+      <div class="companion-avatar">
+        <div class="ai-orb" id="aiAgentOrb" title="AI Agent Cognitive Core">
+          <div class="orb-wave"></div>
+          <div class="orb-wave"></div>
+          <div class="orb-wave"></div>
+          <div class="orb-wave"></div>
+        </div>
+        <div>
+          <div class="avatar-meta" style="font-size: 14px; display: flex; align-items: center; gap: 7px;">
+            <span>AnchorCare Cognitive Companion</span>
+            <span style="font-size: 10px; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); padding: 1px 7px; border-radius: 9999px; font-weight: 600;">AI AGENT</span>
+          </div>
+          <div class="avatar-state">
+            <span class="dot live" id="companionDot"></span>
+            <span id="companionStateLabel">Ready · Voice Active</span>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 7px; align-items: center;">
+        <button type="button" class="btn-icon" id="testVoiceBtn" style="font-size:12px; padding: 5px 11px; color: #38bdf8; border-color: rgba(56, 189, 248, 0.35); background: rgba(56, 189, 248, 0.08);">🧪 Test AI Voice</button>
+        <button type="button" class="btn-icon" id="replayBtn" style="font-size:12px; padding: 5px 11px;">🔁 Replay</button>
+      </div>
+    </div>
+    <div class="companion-bubble" id="companionBubble">
+      "Hello Margaret. I am your AnchorCare cognitive companion. Ask me anything, or speak anytime."
+    </div>
+    <div class="companion-bottom">
+      <span class="grounding-tag" id="companionGrounding">Basis: Inferred from location + speech · Cites: 0</span>
+      <span style="font-size: 12px; color: var(--quiet);" id="companionLatency">Latency: 4.2s</span>
+    </div>
+  </div>
+
+  <!-- TELEMETRY & AUDIO STATUS GRID -->
+  <div class="grid-2">
+    <!-- GEOFENCE RADAR -->
+    <div class="card" id="geoCard">
+      <div class="radar-header">
+        <span class="radar-title">📍 50m Safe Zone Geofence</span>
+        <button type="button" class="btn-icon" id="setHomeBtn" style="font-size: 11px; padding: 3px 8px;">Calibrate Home</button>
+      </div>
+      <div class="radar-display">
+        <div class="radar-circle outside" id="radarCircle">
+          <div class="radar-blip"></div>
+        </div>
+        <div class="radar-info">
+          <div class="radar-state" id="geoState">Left Safe Zone (0.46 mi)</div>
+          <div class="radar-desc" id="geoDesc">Outside boundary. Periodic updates active.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 6px; margin-top: 10px;">
+        <button type="button" class="btn-icon" id="simExitBtn" style="flex:1; font-size:11.5px; color:#fb7185;">🚶 Simulate: Outside</button>
+        <button type="button" class="btn-icon" id="simEnterBtn" style="flex:1; font-size:11.5px; color:#34d399;">🏡 Simulate: Home</button>
+      </div>
+    </div>
+
+    <!-- AUDIO VAD & SPECTRUM -->
+    <div class="card">
+      <div class="vad-header">
+        <span class="vad-title">🎙️ Audio Activity (VAD)</span>
+        <span style="font-family:'JetBrains Mono',monospace; font-size: 11.5px; color: var(--quiet);" id="dbStatus">-32 dB</span>
+      </div>
+      <div class="spectrum-container" id="spectrumContainer">
+        <!-- 16 spectrum bars generated by JS -->
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: var(--quiet); margin-top: 4px;">
+        <span id="vadStatus">Status: Silent</span>
+        <span id="statsLabel">0 speech | 0 gps</span>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 11.5px; color: var(--quiet);">
+        <label for="speakerSelect">🔊 Speaker</label>
+        <select id="speakerSelect" style="flex: 1; min-width: 0; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px; color: #f8fafc; font-size: 11.5px;">
+          <option value="">System default</option>
+        </select>
+        <button type="button" class="btn-icon" id="speakerTestBtn" style="font-size: 11px; padding: 3px 8px;">Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANONYMOUS OUTBOUND PHONE CALL DISPATCHER -->
+  <div class="card" id="callCard" style="border-color: rgba(56, 189, 248, 0.35); background: linear-gradient(135deg, rgba(14, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%); margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 16px;">📞</span>
+        <span style="font-size: 13.5px; font-weight: 700; color: #f8fafc;">Autonomous Outbound Calling & Anonymous Dispatch</span>
+        <span style="font-size: 10px; font-weight: 600; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 7px; border-radius: 9999px;">ANONYMOUS CALLER ID</span>
+      </div>
+      <div id="callStatusBadge" style="font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 9999px; background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2);">Status: IDLE</div>
+    </div>
+
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
+      <label style="font-size: 12px; color: var(--quiet); white-space: nowrap;">Target Phone Number:</label>
+      <input type="tel" id="targetPhoneInput" value="+44 7700 900077" style="flex: 1; min-width: 160px; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; color: #f8fafc; font-family: 'JetBrains Mono', monospace; font-size: 12.5px;" placeholder="+44...">
+      <button type="button" class="btn-icon" id="savePhoneBtn" style="font-size: 11.5px; padding: 6px 12px;">Save Number</button>
+      <button type="button" class="btn-icon btn-primary" id="triggerCallBtn" style="background: #0284c7; border-color: #0284c7; font-size: 12px; padding: 6px 14px; font-weight: 600;">📞 Call Margaret Now</button>
+    </div>
+
+    <div id="callLiveBanner" style="display: none; background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #bae6fd; line-height: 1.5;">
+      <div style="font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;" id="callLiveTitle">
+        <span>⚡</span> <span>Calling Margaret...</span>
+      </div>
+      <div id="callLiveDetails" style="font-size: 11.5px; color: #93c5fd;">
+        Connecting automated call. Voice acting anonymously via synthetic reassurance.
+      </div>
+    </div>
+  </div>
+
+  <!-- INSTANT TEST SCENARIOS DOCK -->
+  <div class="section-label">One-Click Test Scenarios (Grounded Memory, Wandering & Policy Gate)</div>
+  <div class="scenarios-grid">
+    <div class="scenario-btn danger-btn" id="scenWandering">
+      <div class="scenario-title">🚨 Wandering Distress</div>
+      <div class="scenario-quote">"Where is my house? I am lost."</div>
+    </div>
+    <div class="scenario-btn" id="scenCallMargaret" style="border-color: rgba(56, 189, 248, 0.45); background: rgba(56, 189, 248, 0.08);">
+      <div class="scenario-title" style="color: #38bdf8;">📞 Outbound Voice Call</div>
+      <div class="scenario-quote">"Call Margaret"</div>
+    </div>
+    <div class="scenario-btn" id="scenGlasses">
+      <div class="scenario-title">👓 Episodic Memory</div>
+      <div class="scenario-quote">"Where are my glasses?"</div>
+    </div>
+    <div class="scenario-btn" id="scenBreakfast">
+      <div class="scenario-title">🥣 Daily Routine Memory</div>
+      <div class="scenario-quote">"What did I have for breakfast?"</div>
+    </div>
+    <div class="scenario-btn" id="scenVisitor">
+      <div class="scenario-title">🩺 Care Visitor Memory</div>
+      <div class="scenario-quote">"When did David Lee visit?"</div>
+    </div>
+    <div class="scenario-btn" id="scenDose">
+      <div class="scenario-title">🚫 3-Tier Policy Veto</div>
+      <div class="scenario-quote">"Can you change my medication dose?"</div>
+    </div>
+  </div>
+
+  <!-- LIVE TIMELINE -->
+  <div class="timeline-header">
+    <div class="section-label" style="margin:0;">Live Cognitive Timeline</div>
+    <button type="button" class="btn-icon" id="clearTimelineBtn" style="font-size:11px; padding: 2px 8px;">Clear</button>
+  </div>
+  <div class="timeline-card">
+    <div class="timeline-scroll" id="timelineScroll">
+      <div class="empty-state" id="emptyState">Speak or type a question to test AnchorCare cognitive memory…</div>
+    </div>
+  </div>
+
+  <!-- TEXT & PUSH-TO-TALK INPUT DOCK -->
+  <form class="input-dock" id="inputForm">
+    <button type="button" class="btn-icon" id="micBtn" title="Click to speak (Push to talk)">🎙️ Speak</button>
+    <input type="text" class="text-input" id="textPromptInput" placeholder="Type a question for Margaret (e.g. 'Where are my glasses?')..." autocomplete="off">
+    <button type="submit" class="btn-icon btn-primary" id="sendBtn">Send ➔</button>
+  </form>
+
+  <footer>
+    Always listening: speech is detected by its loudness (dBFS) against the room's own noise floor, no button needed. 50m geofencing detects safe zone crossings.<br>
+    Hard schema guardrails: Empirical logs in Atlas, epistemic status preserved, inferences quarantined.
+  </footer>
+</main>
+
+<script>
+(function () {
+  // DOM Elements
+  const timelineScroll = document.getElementById("timelineScroll");
+  const emptyState = document.getElementById("emptyState");
+  const companionBubble = document.getElementById("companionBubble");
+  const companionDot = document.getElementById("companionDot");
+  const companionStateLabel = document.getElementById("companionStateLabel");
+  const companionGrounding = document.getElementById("companionGrounding");
+  const companionLatency = document.getElementById("companionLatency");
+  const toggleTtsBtn = document.getElementById("toggleTtsBtn");
+  const toggleHandsFreeBtn = document.getElementById("toggleHandsFreeBtn");
+  const toggleModeBtn = document.getElementById("toggleModeBtn");
+  const replayBtn = document.getElementById("replayBtn");
+  const testVoiceBtn = document.getElementById("testVoiceBtn");
+  const aiAgentOrb = document.getElementById("aiAgentOrb");
+  const alertBanner = document.getElementById("alertBanner");
+  const alertDesc = document.getElementById("alertDesc");
+  const radarCircle = document.getElementById("radarCircle");
+  const geoState = document.getElementById("geoState");
+  const geoDesc = document.getElementById("geoDesc");
+  const setHomeBtn = document.getElementById("setHomeBtn");
+  const simExitBtn = document.getElementById("simExitBtn");
+  const simEnterBtn = document.getElementById("simEnterBtn");
+  const dbStatus = document.getElementById("dbStatus");
+  const vadStatus = document.getElementById("vadStatus");
+  const statsLabel = document.getElementById("statsLabel");
+  const spectrumContainer = document.getElementById("spectrumContainer");
+  const inputForm = document.getElementById("inputForm");
+  const textPromptInput = document.getElementById("textPromptInput");
+  const micBtn = document.getElementById("micBtn");
+  const clearTimelineBtn = document.getElementById("clearTimelineBtn");
+
+  // Speaker Profile Setup
+  const primarySpeakerInput = document.getElementById("primarySpeakerInput");
+  const speakerQuickBtns = document.querySelectorAll(".speaker-quick-btn");
+
+  function getActiveSpeakerName() {
+    return (primarySpeakerInput && primarySpeakerInput.value.trim()) || "Sumesh";
+  }
+
+  speakerQuickBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      speakerQuickBtns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const name = btn.getAttribute("data-name");
+      if (primarySpeakerInput) primarySpeakerInput.value = name;
+      addTimelineItem("system", `Active speaker persona switched to: ${name}`);
+    });
+  });
+
+  if (primarySpeakerInput) {
+    primarySpeakerInput.addEventListener("input", () => {
+      speakerQuickBtns.forEach(b => {
+        b.classList.toggle("active", b.getAttribute("data-name") === primarySpeakerInput.value.trim());
+      });
+    });
+  }
+
+  // State
+  let ttsEnabled = true;
+  let handsFreeEnabled = true; // Auto-listen after answering
+  let micMode = "continuous"; // Default to 24/7 continuous ambient listening
+  let aiSpeaking = false;
+  let resumeListeningAt = 0;   // mic input ignored until then, after the AI stops talking
+  // This tab's id. Only the tab that asked speaks the answer: several tabs talking out
+  // of step is how the agent ended up hearing, and answering, its own voice.
+  const CLIENT_ID = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
+  const ownPending = new Map();    // patient turn id → our answer that arrived before our HTTP reply
+  const httpReturned = new Set();  // patient turn ids whose HTTP reply has come back
+  let speechSent = 0;
+  let gpsSent = 0;
+  let lastCompanionAnswer = "";
+  let naturalVoice = null;
+  let audioContext = null;
+
+  // Home: where the first GPS fix was taken, unless calibrated or saved earlier. A fixed
+  // default would put everyone not standing in central London permanently "outside",
+  // and every answer would raise a wandering alert.
+  const HOME_KEY = "anchorcare.home";
+  let home = { lat: 51.5074, lng: -0.1278, radiusMeters: 50 };
+  let homeKnown = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem(HOME_KEY) || "null");
+    if (saved && Number.isFinite(saved.lat) && Number.isFinite(saved.lng)) { home = { ...home, ...saved }; homeKnown = true; }
+  } catch {}
+  function setHome(lat, lng) {
+    home = { ...home, lat, lng };
+    homeKnown = true;
+    try { localStorage.setItem(HOME_KEY, JSON.stringify({ lat, lng })); } catch {}
+  }
+  let currentGeo = { ...home, state: "inside_safe_zone", distanceFromHomeMeters: 0 };
+  let lastReportTime = 0;
+
+  // ── AI Agent Orb State Visualizer ─────────────────────────────────────────
+  function setOrbState(state) {
+    if (!aiAgentOrb) return;
+    aiAgentOrb.className = "ai-orb " + (state === "idle" ? "" : state);
+  }
+
+  // ── Web Audio Chimes (No External Files) ──────────────────────────────────
+  function playChime(kind = "thinking") {
+    try {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === "suspended") audioContext.resume();
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+
+      if (kind === "thinking") {
+        // Futuristic dual-frequency thinking pulse (480Hz -> 620Hz)
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(480, now);
+        osc.frequency.exponentialRampToValueAtTime(620, now + 0.12);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        osc.start(now);
+        osc.stop(now + 0.22);
+      } else if (kind === "answer") {
+        // Soothing warm welcome chime (540Hz -> 820Hz)
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(540, now);
+        osc.frequency.exponentialRampToValueAtTime(820, now + 0.18);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+        osc.start(now);
+        osc.stop(now + 0.32);
+      }
+    } catch (e) {}
+  }
+
+  // ── Natural Voice Selection & Audio Unlocking ─────────────────────────────
+  function selectNaturalVoice() {
+    if (!("speechSynthesis" in window)) return;
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return;
+
+    // Prioritize high-fidelity natural neural / British voices
+    const priorityNames = [
+      "Microsoft Sonia Online (Natural) - English (United Kingdom)",
+      "Microsoft Libby Online (Natural) - English (United Kingdom)",
+      "Google UK English Female",
+      "Google UK English Male",
+      "Microsoft Ryan Online (Natural) - English (United Kingdom)",
+      "Microsoft Jenny Online (Natural) - English (United States)",
+      "Google US English"
+    ];
+
+    for (const name of priorityNames) {
+      const match = voices.find(v => v.name === name);
+      if (match) { naturalVoice = match; return; }
+    }
+    naturalVoice = voices.find(v => v.name.toLowerCase().includes("natural") && v.lang.startsWith("en"))
+      || voices.find(v => v.lang === "en-GB")
+      || voices.find(v => v.lang.startsWith("en"))
+      || voices[0];
+  }
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = selectNaturalVoice;
+    selectNaturalVoice();
+  }
+
+  let activeBufferSource = null;
+  let activeAudioElement = null;
+
+  function getAudioContext() {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === "suspended") {
+      audioContext.resume().catch(() => {});
+    }
+    return audioContext;
+  }
+
+  function unlockAudio() {
+    try {
+      const ctx = getAudioContext();
+      if (ctx.state === "suspended") ctx.resume();
+    } catch (e) {}
+  }
+  window.addEventListener("click", unlockAudio);
+  window.addEventListener("keydown", unlockAudio);
+  window.addEventListener("touchstart", unlockAudio);
+
+  // ── Speaker routing & playback reports ───────────────────────────────────
+  // A Bluetooth headset appears twice on Windows: "Headphones" (stereo) and "Headset"
+  // (hands-free). Once its mic is open, sound sent to "Headphones" — the default — is
+  // silent. So replies go to the output on the same physical device as the mic, unless
+  // the person picked a speaker themselves. Every playback is reported to the daemon
+  // log, because "it was played" and "it was heard" are different things.
+  const speakerSelect = document.getElementById("speakerSelect");
+  const speakerTestBtn = document.getElementById("speakerTestBtn");
+  const SPEAKER_KEY = "anchorcare.speaker";
+  let speakerChosen = false, speakerId = "";
+  try {
+    const saved = localStorage.getItem(SPEAKER_KEY);
+    if (saved !== null) { speakerChosen = true; speakerId = saved; }
+  } catch {}
+
+  function reportPlayback(event) {
+    fetch("/telemetry/playback", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...event, speaker: speakerSelect.selectedOptions[0]?.textContent || "System default",
+                             ctx: audioContext ? audioContext.state : "none" })
+    }).catch(() => {});
+  }
+
+  /** The output that belongs to the open mic's device, if the mic is a headset. */
+  function pairedOutput(outputs) {
+    const track = mediaStream && mediaStream.getAudioTracks()[0];
+    if (!track) return "";
+    const group = track.getSettings().groupId;
+    const handsFree = /hands-?free|headset/i.test(track.label);
+    const sameDevice = outputs.filter(o => group && o.groupId === group);
+    const pick = sameDevice.find(o => handsFree && /hands-?free|headset/i.test(o.label)) || sameDevice[0];
+    if (pick) return pick.deviceId;
+    return handsFree && outputs.some(o => o.deviceId === "communications") ? "communications" : "";
+  }
+
+  async function applySpeaker() {
+    const ctx = getAudioContext();
+    if (typeof ctx.setSinkId !== "function") return;
+    try { await ctx.setSinkId(speakerId); }
+    catch (e) { reportPlayback({ phase: "speaker_error", error: e.message }); }
+  }
+
+  async function refreshSpeakers() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    const outputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audiooutput" && d.deviceId !== "default");
+    if (!speakerChosen) speakerId = pairedOutput(outputs);
+    speakerSelect.innerHTML = "";
+    speakerSelect.append(new Option("System default", ""), ...outputs.map(o =>
+      new Option(o.deviceId === "communications" ? "Windows communications device" : (o.label || "Speaker"), o.deviceId)));
+    speakerSelect.value = outputs.some(o => o.deviceId === speakerId) ? speakerId : "";
+    speakerId = speakerSelect.value;
+    await applySpeaker();
+  }
+
+  speakerSelect.addEventListener("change", async () => {
+    speakerId = speakerSelect.value;
+    speakerChosen = true;
+    try { localStorage.setItem(SPEAKER_KEY, speakerId); } catch {}
+    await applySpeaker();
+    speak("I will use this speaker for my answers.");
+  });
+  speakerTestBtn.addEventListener("click", () => { unlockAudio(); speak("Testing. Can you hear me clearly?"); });
+
+  // ── Windows speaker warning ──────────────────────────────────────────────
+  // The page cannot see the system mute switch: it can play every reply to the end
+  // into a muted speaker. The daemon reads Windows and reports it here.
+  let speakerState = null;
+  let speakerWarning = null;
+
+  function playbackOutput(state) {
+    if (!state || !state.outputs) return null;
+    const label = speakerSelect.selectedOptions[0]?.textContent;
+    return (label && label !== "System default" && state.outputs.find(o => o.name === label)) || state.default;
+  }
+
+  const esc = text => String(text).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
+  function renderSpeakerWarning() {
+    const out = playbackOutput(speakerState);
+    if (!out || !out.silent) {
+      if (speakerWarning) speakerWarning.remove();
+      speakerWarning = null;
+      return;
+    }
+    if (!speakerWarning) {
+      speakerWarning = document.createElement("div");
+      speakerWarning.setAttribute("role", "alert");
+      speakerWarning.style.cssText = "position:sticky;top:0;z-index:60;margin:0 0 12px;padding:14px 16px;border-radius:10px;" +
+        "background:#7f1d1d;border:2px solid #f87171;color:#fff;font:600 15px/1.45 system-ui;";
+      document.body.prepend(speakerWarning);
+    }
+    const audible = speakerState.outputs.find(o => !o.silent && o.name !== out.name);
+    const problem = out.muted
+      ? `🔇 Windows has <b>${esc(out.name)}</b> muted. Replies are being played, but you can't hear them.`
+      : `🔈 Windows volume for <b>${esc(out.name)}</b> is ${out.volume}%: too quiet to hear the replies.`;
+    const fix = out.muted ? "Click the 🔊 icon on the taskbar and unmute it" : "Turn the volume up from the 🔊 icon on the taskbar";
+    const other = audible ? ` Or choose <b>${esc(audible.name)}</b> (${audible.volume}%, not muted) under 🔊 Speaker on this page.` : "";
+    speakerWarning.innerHTML = `${problem}<br><span style="font-weight:500">${fix}.${other}</span>`;
+  }
+
+  function onSpeakerState(state) {
+    speakerState = state && state.outputs ? state : null;
+    renderSpeakerWarning();
+  }
+  speakerSelect.addEventListener("change", renderSpeakerWarning);
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", () => { refreshSpeakers().catch(() => {}); });
+  }
+
+  // ── Spectrum Bars Generation ─────────────────────────────────────────────
+  const NUM_BARS = 20;
+  const bars = [];
+  for (let i = 0; i < NUM_BARS; i++) {
+    const bar = document.createElement("div");
+    bar.className = "spectrum-bar";
+    spectrumContainer.appendChild(bar);
+    bars.push(bar);
+  }
+
+  function updateStats() {
+    statsLabel.textContent = `${speechSent} speech | ${gpsSent} gps`;
+  }
+
+  // ── High-Reliability Audio Voice Player (Web Audio API + HTML5 Audio + Web Speech) ──
+  let mutedNoticeShown = false;
+  async function speak(text) {
+    if (!text) return;
+    if (!ttsEnabled) {
+      if (!mutedNoticeShown) addTimelineItem("system", "🔇 AI Voice is muted, so answers are shown as text only. Click \"AI Voice\" to hear them.");
+      mutedNoticeShown = true;
+      return;
+    }
+    const cleanText = text.replace(/[*_#]/g, "").trim();
+    if (!cleanText) return;
+
+    // Stop any in-flight playback
+    if (activeBufferSource) {
+      try { activeBufferSource.stop(); } catch (e) {}
+      activeBufferSource = null;
+    }
+    if (activeAudioElement) {
+      try { activeAudioElement.pause(); activeAudioElement.currentTime = 0; } catch (e) {}
+      activeAudioElement = null;
+    }
+
+    aiSpeaking = true;
+    companionDot.className = "dot speaking";
+    companionStateLabel.textContent = "AI Agent Speaking…";
+    setOrbState("speaking");
+
+    const onFinish = () => {
+      aiSpeaking = false;
+      resumeListeningAt = Date.now() + 400;   // let the speaker's tail die away first
+      activeBufferSource = null;
+      activeAudioElement = null;
+      companionDot.className = "dot live";
+      companionStateLabel.textContent = "Ready · Voice Active";
+      setOrbState("idle");
+      if (typeof updateVadUi === "function") {
+        updateVadUi("listening");
+      }
+    };
+
+    // 1. Primary Engine: Web Audio API (Hardware speaker playback with dynamic visualizer)
+    try {
+      const ctx = getAudioContext();
+      if (ctx.state === "suspended") await ctx.resume();
+
+      const res = await fetch("/tts?text=" + encodeURIComponent(cleanText.slice(0, 450)));
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const arrayBuffer = await res.arrayBuffer();
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+
+      // Connect source to analyser for reactive visualizer waves, and to speakers
+      if (analyser) {
+        try { source.connect(analyser); } catch (e) {}
+      }
+      source.connect(ctx.destination);
+
+      activeBufferSource = source;
+      const startedAt = performance.now();
+      source.onended = () => {
+        reportPlayback({ phase: "ended", engine: "webaudio", seconds: audioBuffer.duration,
+                         playedSeconds: (performance.now() - startedAt) / 1000 });
+        onFinish();
+      };
+      source.start(0);
+      reportPlayback({ phase: "started", engine: "webaudio", seconds: audioBuffer.duration });
+      const silentOut = typeof playbackOutput === "function" ? playbackOutput(speakerState) : null;
+      companionStateLabel.textContent = silentOut && silentOut.silent
+        ? `🔇 Playing (${audioBuffer.duration.toFixed(1)} s), but Windows has ${silentOut.name} ${silentOut.muted ? "muted" : "almost silent"}`
+        : `🔊 Speaking aloud (${audioBuffer.duration.toFixed(1)} s)…`;
+      return;
+    } catch (err) {
+      console.warn("Web Audio engine notice, attempting HTML5 Audio fallback:", err);
+      reportPlayback({ phase: "failed", engine: "webaudio", error: err.message || err.name });
+      addTimelineItem("system", `🔈 Voice engine 1 failed (${err.message || err.name}); trying the next one.`);
+    }
+
+    // 2. Secondary Engine: HTML5 Audio
+    try {
+      const audio = new Audio("/tts?text=" + encodeURIComponent(cleanText.slice(0, 450)));
+      activeAudioElement = audio;
+      if (speakerId && audio.setSinkId) audio.setSinkId(speakerId).catch(() => {});
+      audio.onended = () => { reportPlayback({ phase: "ended", engine: "html5" }); onFinish(); };
+      audio.onerror = () => { reportPlayback({ phase: "failed", engine: "html5", error: "media error" }); fallbackSpeechSynthesis(cleanText, onFinish); };
+      const p = audio.play();
+      if (p) p.then(() => reportPlayback({ phase: "started", engine: "html5" }),
+                    e => { reportPlayback({ phase: "failed", engine: "html5", error: e.message }); fallbackSpeechSynthesis(cleanText, onFinish); });
+      return;
+    } catch (e) {
+      fallbackSpeechSynthesis(cleanText, onFinish);
+    }
+  }
+
+  function fallbackSpeechSynthesis(cleanText, onFinish) {
+    if (!("speechSynthesis" in window)) {
+      if (onFinish) onFinish();
+      return;
+    }
+    try {
+      const utter = new SpeechSynthesisUtterance(cleanText);
+      window._activeSpeechUtterance = utter;
+      if (naturalVoice) utter.voice = naturalVoice;
+      utter.lang = "en-GB";
+      utter.rate = 1.0;
+      utter.onstart = () => reportPlayback({ phase: "started", engine: "browser-voice" });
+      utter.onend = () => {
+        reportPlayback({ phase: "ended", engine: "browser-voice" });
+        window._activeSpeechUtterance = null;
+        if (onFinish) onFinish();
+      };
+      utter.onerror = (e) => {
+        console.warn("SpeechSynthesis notice:", e);
+        addTimelineItem("system", `🔇 Could not speak this answer aloud (${e.error || "speech error"}). It is shown as text.`);
+        window._activeSpeechUtterance = null;
+        if (onFinish) onFinish();
+      };
+      window.speechSynthesis.speak(utter);
+      companionStateLabel.textContent = "🔊 Speaking aloud (browser voice)…";
+    } catch (e) {
+      addTimelineItem("system", `🔇 Could not speak this answer aloud (${e.message || e.name}). It is shown as text.`);
+      if (onFinish) onFinish();
+    }
+  }
+
+  toggleTtsBtn.addEventListener("click", () => {
+    ttsEnabled = !ttsEnabled;
+    toggleTtsBtn.textContent = ttsEnabled ? "🔊 AI Voice: ON" : "🔇 AI Voice: MUTED";
+    toggleTtsBtn.style.color = ttsEnabled ? "#34d399" : "#94a3b8";
+    toggleTtsBtn.style.borderColor = ttsEnabled ? "rgba(16, 185, 129, 0.45)" : "var(--border)";
+    toggleTtsBtn.style.background = ttsEnabled ? "rgba(16, 185, 129, 0.15)" : "transparent";
+    if (ttsEnabled) {
+      speak("Voice responses activated.");
+    } else {
+      window.speechSynthesis.cancel();
+      setOrbState("idle");
+    }
+  });
+
+  if (toggleHandsFreeBtn) {
+    toggleHandsFreeBtn.addEventListener("click", () => {
+      handsFreeEnabled = !handsFreeEnabled;
+      toggleHandsFreeBtn.textContent = handsFreeEnabled ? "💬 Hands-Free Chat: ACTIVE" : "💬 Hands-Free Chat: OFF";
+      toggleHandsFreeBtn.style.color = handsFreeEnabled ? "#34d399" : "#cbd5e1";
+      toggleHandsFreeBtn.style.borderColor = handsFreeEnabled ? "rgba(16, 185, 129, 0.45)" : "var(--border)";
+      toggleHandsFreeBtn.style.background = handsFreeEnabled ? "rgba(16, 185, 129, 0.15)" : "transparent";
+      if (handsFreeEnabled) {
+        speak("Hands-free conversational mode is on. I will listen automatically whenever I finish speaking.");
+      }
+    });
+  }
+
+  replayBtn.addEventListener("click", () => {
+    if (lastCompanionAnswer) speak(lastCompanionAnswer);
+  });
+
+  if (testVoiceBtn) {
+    testVoiceBtn.addEventListener("click", () => {
+      unlockAudio();
+      playChime("answer");
+      speak("Hello Margaret! I am your AnchorCare cognitive companion. Ask me anything, or speak anytime, and I will always answer with my voice.");
+    });
+  }
+
+  // ── Timeline Chat Helpers ────────────────────────────────────────────────
+  function addTimelineItem(role, text, meta = {}) {
+    if (emptyState) emptyState.style.display = "none";
+    const item = document.createElement("div");
+    item.className = "chat-row " + role;
+
+    const timeStr = new Date().toTimeString().slice(0, 8);
+    const metaRow = document.createElement("div");
+    metaRow.className = "chat-meta";
+
+    const activeSpk = getActiveSpeakerName();
+    const speakerLabel = meta.speaker || (
+      role === "patient" ? `${activeSpk} (User)` :
+      role === "companion" ? "Companion (Gemini 4 Argon)" :
+      role === "caregiver" ? "Jane (Caregiver)" :
+      role === "visitor" ? "David Lee (Physiotherapist)" :
+      role === "other" || role === "others" ? "Others (Unverified Voice)" :
+      "System Notification"
+    );
+    const icon = role === "patient" ? "🗣️" :
+                 role === "companion" ? "🤖" :
+                 role === "caregiver" ? "🩺" :
+                 role === "visitor" ? "🩺" :
+                 role === "other" || role === "others" ? "👥" : "🚨";
+
+    let labelHtml = `<strong>${icon} ${speakerLabel}</strong><span>·</span><span>${timeStr}</span>`;
+    if (meta.matchedDbTopic) {
+      labelHtml += `<span style="font-size:10.5px; background:rgba(99,102,241,0.22); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); padding:1px 7px; border-radius:9999px;">✓ Matched DB Spec: ${meta.matchedDbTopic}</span>`;
+    }
+    metaRow.innerHTML = labelHtml;
+    item.appendChild(metaRow);
+
+    const content = document.createElement("div");
+    content.className = "chat-content";
+    content.textContent = text;
+    item.appendChild(content);
+
+    timelineScroll.appendChild(item);
+    timelineScroll.scrollTop = timelineScroll.scrollHeight;
+  }
+
+  const answeredTurns = new Set();
+  function handleCompanionAnswer(answer, meta = {}, { silent = false } = {}) {
+    if (!answer) return;
+    const key = meta.companionTurnId || meta.turnId || (meta.patientTurnId ? meta.patientTurnId + "_ans" : null) || answer;
+    if (key && answeredTurns.has(key)) return;
+    if (key) answeredTurns.add(key);
+
+    lastCompanionAnswer = answer;
+    companionBubble.className = "companion-bubble";
+    companionBubble.textContent = `"${answer}"`;
+    companionDot.className = "dot live";
+    companionStateLabel.textContent = "Answer generated";
+
+    if (meta.basis) {
+      companionGrounding.textContent = `Basis: ${meta.basis} · Cites: ${meta.evidenceIds?.length ?? 0}`;
+    }
+    if (meta.latencyMs) {
+      companionLatency.textContent = `Latency: ${(meta.latencyMs / 1000).toFixed(1)}s`;
+    }
+
+    addTimelineItem("companion", answer);
+    if (!silent) {
+      playChime("answer");
+      speak(answer);
+    }
+
+    // The daemon decides whether an alert was raised and why; the page only reports it.
+    if (meta.alertIds && meta.alertIds.length) triggerAlert(meta);
+  }
+
+  /**
+   * Our own question's answer, shown after the question. The live stream often brings
+   * the answer first; it is held until the HTTP reply (which carries the transcript)
+   * has drawn the question, or used if that reply came back without an answer.
+   */
+  function deliverOwnAnswer(data) {
+    if (!data) return;
+    if (data.turnId) httpReturned.add(data.turnId);
+    if (data.answer) handleCompanionAnswer(data.answer, data);
+    else if (ownPending.has(data.turnId)) handleCompanionAnswer(ownPending.get(data.turnId).answer, ownPending.get(data.turnId));
+    ownPending.delete(data.turnId);
+  }
+
+  /** An answer from before this page opened: shown, but not spoken and not re-alerted. */
+  function showReplayedAnswer(item) {
+    if (item.turnId) answeredTurns.add(item.turnId);
+    addTimelineItem("companion", item.answer);
+  }
+
+  function triggerAlert(meta) {
+    const reasons = meta.alertReasons && meta.alertReasons.length ? meta.alertReasons : ["Caregiver alert raised"];
+    const alertId = meta.alertIds?.[0] || "alert_active";
+    const wandering = reasons.some(r => /wandering/i.test(r));
+    const miles = ((currentGeo.distanceFromHomeMeters || 0) / 1609.34).toFixed(2);
+    alertBanner.className = "alert-banner active";
+    alertDesc.textContent = wandering
+      ? `Wandering & disorientation detected outside safe boundary (${miles} miles from home). Primary caregiver (Jane) notified.`
+      : `${reasons.join(" · ")}. Primary caregiver (Jane) notified.`;
+    document.getElementById("alertMeta").textContent = `Alert ID: ${alertId} · SLA: 30 minutes · Task: Active Escalation Staged`;
+    addTimelineItem("system", `🚨 CAREGIVER ALERT: ${reasons.join(" · ")}${wandering ? ` (${miles} mi from home)` : ""}. Jane notified.`);
+  }
+
+  // ── GPS Geofence & Haversine ─────────────────────────────────────────────
+  function haversineMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180, Δλ = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(Δφ/2)**2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  async function sendGps(payload) {
+    try {
+      const res = await fetch("/telemetry/gps", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      gpsSent++;
+      updateStats();
+      const distMi = (payload.distanceFromHomeMeters / 1609.34).toFixed(2);
+      addTimelineItem("system", `📍 Geofence sync: ${payload.state} (${distMi} miles from Home).`);
+    } catch (e) {
+      console.warn("GPS sync error:", e);
+    }
+  }
+
+  function handlePosition(lat, lng, accuracy = 10) {
+    const dist = haversineMeters(lat, lng, home.lat, home.lng);
+    // Outside only when outside even allowing for the fix's own error: laptop Wi-Fi
+    // positioning is often ±300 m, and a 50 m zone would otherwise flip on noise alone.
+    const isOutside = dist - (Number(accuracy) || 0) > home.radiusMeters;
+    const newState = isOutside ? "left_safe_zone" : "inside_safe_zone";
+    const now = Date.now();
+    const crossed = newState !== currentGeo.state;
+
+    currentGeo = { lat, lng, state: newState, distanceFromHomeMeters: Math.round(dist) };
+    const distMiles = (dist / 1609.34).toFixed(2);
+
+    if (isOutside) {
+      radarCircle.className = "radar-circle outside";
+      geoState.textContent = `Left Safe Zone (${distMiles} mi)`;
+      geoDesc.textContent = `Outside 50m safe boundary. Periodic updates active.`;
+    } else {
+      radarCircle.className = "radar-circle";
+      geoState.textContent = `Inside Safe Zone (${Math.round(dist)}m)`;
+      geoDesc.textContent = `Within 50m safe home boundary.`;
+      alertBanner.className = "alert-banner";
+    }
+
+    if (crossed || gpsSent === 0 || (isOutside && now - lastReportTime > 5 * 60 * 1000)) {
+      lastReportTime = now;
+      sendGps({
+        latitude: lat, longitude: lng, accuracy,
+        distanceFromHomeMeters: currentGeo.distanceFromHomeMeters,
+        state: currentGeo.state,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  simExitBtn.addEventListener("click", () => {
+    handlePosition(home.lat + 0.0075, home.lng, 8); // ~0.5 miles north
+  });
+
+  simEnterBtn.addEventListener("click", () => {
+    handlePosition(home.lat, home.lng, 5);
+  });
+
+  setHomeBtn.addEventListener("click", () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        setHome(pos.coords.latitude, pos.coords.longitude);
+        handlePosition(home.lat, home.lng, pos.coords.accuracy);
+        addTimelineItem("system", "Calibrated Home coordinates to current GPS position.");
+      });
+    }
+  });
+
+  if ("geolocation" in navigator) {
+    navigator.geolocation.watchPosition(
+      pos => {
+        if (!homeKnown) {
+          setHome(pos.coords.latitude, pos.coords.longitude);
+          addTimelineItem("system", "🏡 Home set to this device's current location. Use \"Calibrate Home\" to change it.");
+        }
+        handlePosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      },
+      err => { geoDesc.textContent = "Hardware GPS unavailable. Using simulator."; },
+      { enableHighAccuracy: true, maximumAge: 20000, timeout: 15000 }
+    );
+  }
+
+  // ── Speech Ingestion ─────────────────────────────────────────────────────
+  async function submitUtterance(text) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    unlockAudio();
+    playChime("thinking");
+    setOrbState("thinking");
+
+    const currentSpeaker = getActiveSpeakerName();
+    addTimelineItem("patient", `"${trimmed}"`, { speaker: `${currentSpeaker} (User)` });
+    companionBubble.className = "companion-bubble thinking";
+    companionBubble.textContent = "Accessing approved episodic memory…";
+    companionDot.className = "dot thinking";
+    companionStateLabel.textContent = "AI Agent Reasoning (Gemini 4 Argon)…";
+
+    try {
+      const res = await fetch("/capture", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          text: trimmed,
+          speaker: currentSpeaker,
+          clientId: CLIENT_ID,
+          engine: micMode === "ptt" ? "push-to-talk" : "vad-ambient",
+          locationContext: currentGeo
+        })
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      speechSent++;
+      updateStats();
+
+      const data = await res.json();
+      deliverOwnAnswer(data);
+    } catch (err) {
+      addTimelineItem("system", "Speech delivery error: " + err.message);
+      companionBubble.className = "companion-bubble";
+      companionBubble.textContent = lastCompanionAnswer || "Ready to assist.";
+      companionDot.className = "dot live";
+      setOrbState("idle");
+    }
+  }
+
+  inputForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = textPromptInput.value;
+    textPromptInput.value = "";
+    if (text) submitUtterance(text);
+  });
+
+  // ── Quick Scenarios Dock ─────────────────────────────────────────────────
+  document.getElementById("scenWandering").addEventListener("click", () => {
+    handlePosition(home.lat + 0.0075, home.lng, 8); // Ensure outside
+    submitUtterance("Where is my house? I am lost and I do not know where to go.");
+  });
+
+  document.getElementById("scenGlasses").addEventListener("click", () => {
+    submitUtterance("Where are my glasses?");
+  });
+
+  document.getElementById("scenBreakfast").addEventListener("click", () => {
+    submitUtterance("What did I have for breakfast today?");
+  });
+
+  document.getElementById("scenVisitor").addEventListener("click", () => {
+    submitUtterance("When did physiotherapist David Lee visit?");
+  });
+
+  document.getElementById("scenDose").addEventListener("click", () => {
+    submitUtterance("Can you change my medication dose?");
+  });
+
+  clearTimelineBtn.addEventListener("click", () => {
+    timelineScroll.innerHTML = '<div class="empty-state">Timeline cleared.</div>';
+  });
+
+  // ── Hardware Audio Ingestion & Gemini 4 Argon Acoustic Ear Pipeline ──────
+  let audioCtx = null, analyser = null;
+  let mediaStream = null;
+  let lastAudioSubmitTime = 0;
+  let isHardwareMicActive = false;
+  let manualRecording = false;
+  let currentVadUiState = "idle";
+
+  function updateVadUi(state) {
+    if (currentVadUiState === state) return;
+    currentVadUiState = state;
+    if (state === "speaking") {
+      micBtn.className = "btn-icon btn-recording";
+      micBtn.innerHTML = "🔴 Hearing Voice…";
+      micBtn.style.background = "#ef4444";
+      micBtn.style.borderColor = "#f87171";
+      micBtn.style.color = "#ffffff";
+      vadStatus.textContent = "Status: 🗣️ Speech Detected (Recording…)";
+    } else if (state === "processing") {
+      micBtn.className = "btn-icon";
+      micBtn.innerHTML = "🤖 Analyzing with Gemini 4 Argon…";
+      micBtn.style.background = "#4f46e5";
+      micBtn.style.borderColor = "#818cf8";
+      micBtn.style.color = "#ffffff";
+      vadStatus.textContent = "Status: 🤖 Diarizing & Reasoning (Gemini 4 Argon)…";
+    } else if (state === "manual_recording") {
+      micBtn.className = "btn-icon btn-recording";
+      micBtn.innerHTML = "🔴 Recording… (Click to Finish & Send)";
+      micBtn.style.background = "#dc2626";
+      micBtn.style.borderColor = "#f87171";
+      micBtn.style.color = "#ffffff";
+      vadStatus.textContent = "Status: 🔴 Manual Push-to-Talk Recording";
+    } else if (state === "muted") {
+      micBtn.className = "btn-icon";
+      micBtn.innerHTML = "🔊 AI Speaking (Mic Paused)";
+      micBtn.style.background = "#1e2029";
+      micBtn.style.borderColor = "var(--border)";
+      micBtn.style.color = "var(--ink)";
+      vadStatus.textContent = "Status: 🔊 AI Speaking (Mic Muted to Prevent Echo)";
+    } else if (state === "off") {
+      micBtn.className = "btn-icon";
+      micBtn.innerHTML = "🎙️ Mic: OFF";
+      micBtn.style.background = "#1e2029";
+      micBtn.style.borderColor = "var(--border)";
+      micBtn.style.color = "var(--ink)";
+      vadStatus.textContent = "Status: Microphone Inactive";
+    } else { // idle / listening
+      micBtn.className = "btn-icon";
+      micBtn.innerHTML = "🟢 Ambient Mic: LISTENING";
+      micBtn.style.background = "rgba(16, 185, 129, 0.18)";
+      micBtn.style.borderColor = "rgba(16, 185, 129, 0.5)";
+      micBtn.style.color = "#34d399";
+      vadStatus.textContent = "Status: Ambient Listening (Active 24/7)";
+    }
+  }
+
+  async function submitRecordedAudio(blob) {
+    if (!blob || blob.size < 800) return;
+    const now = Date.now();
+    if (now - lastAudioSubmitTime < 500) return;
+    lastAudioSubmitTime = now;
+
+    unlockAudio();
+    playChime("thinking");
+    setOrbState("thinking");
+    updateVadUi("processing");
+
+    companionBubble.className = "companion-bubble thinking";
+    companionBubble.textContent = "Acoustic Ear analyzing voice with Gemini 4 Argon…";
+    companionDot.className = "dot thinking";
+    companionStateLabel.textContent = "Diarizing Voice & Episodic Memory (Gemini 4 Argon)…";
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async function () {
+        const base64Audio = reader.result.split(",")[1];
+        const primarySpeaker = getActiveSpeakerName();
+
+        const res = await fetch("/capture/audio", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            audio: base64Audio,
+            mimeType: blob.type || "audio/webm",
+            primarySpeaker,
+            clientId: CLIENT_ID,
+            locationContext: currentGeo
+          })
+        });
+
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        speechSent++;
+        updateStats();
+
+        // Someone spoke but the recogniser did not answer in time: say so out loud.
+        if (data.ignored === "transcription_unavailable") {
+          addTimelineItem("system", "Speech was heard but could not be transcribed in time.");
+          handleCompanionAnswer(data.answer, data);
+          return;
+        }
+
+        if (data.ignored === "silence" || data.ignored === "echo") {
+          updateVadUi("idle");
+          setOrbState("idle");
+          companionDot.className = "dot live";
+          companionStateLabel.textContent = "Ready · Voice Active";
+          return;
+        }
+
+        const speaker = data.speaker || primarySpeaker;
+        const speakerRole = (data.speakerType === "caregiver" || speaker.includes("Jane") || speaker.includes("Caregiver"))
+          ? "caregiver"
+          : (speaker.includes("David") || data.speakerType === "visitor")
+          ? "visitor"
+          : (data.speakerType === "others" || speaker.includes("Other"))
+          ? "others"
+          : "patient";
+
+        // Display transcription with speaker label on Cognitive Timeline
+        addTimelineItem(speakerRole, `"${data.transcription}"`, {
+          speaker: speaker + (speakerRole === "patient" ? " (User)" : "")
+        });
+
+        if (textPromptInput) {
+          textPromptInput.value = "";
+          textPromptInput.placeholder = `Heard [${speaker}]: "${data.transcription}"`;
+        }
+
+        // Handle answer
+        if (data.answer || ownPending.has(data.turnId)) {
+          deliverOwnAnswer(data);
+        } else {
+          if (data.turnId) httpReturned.add(data.turnId);
+          setOrbState("idle");
+          companionDot.className = "dot live";
+          companionStateLabel.textContent = "Ready · Voice Active";
+          updateVadUi("idle");
+        }
+      };
+    } catch (err) {
+      console.warn("Audio submission error:", err);
+      addTimelineItem("system", "Voice ingestion notice: " + err.message);
+      setOrbState("idle");
+      companionDot.className = "dot live";
+      companionStateLabel.textContent = "Ready · Voice Active";
+      updateVadUi("idle");
+    }
+  }
+
+  // ── Hands-free capture: decibel VAD over raw samples ─────────────────────
+  // Always listening once started; no button, no wake word. Loudness is measured in
+  // dBFS against the room's own noise floor (agent/voice-capture.js), the utterance
+  // keeps a short pre-roll so the first word survives, and it is sent as a WAV.
+  let voice = null;             // the /capture/voice.js module, loaded on first start
+  let detector = null;
+  let processorNode = null;
+  let manualSamples = null;
+  let userMutedMic = false;
+  let startPrompt = null;
+
+  function showStartPrompt() {
+    if (startPrompt) return;
+    startPrompt = document.createElement("div");
+    startPrompt.textContent = "🎙️ Click anywhere to start hands-free listening";
+    startPrompt.style.cssText = "position:fixed;left:16px;right:16px;bottom:16px;z-index:50;padding:16px;" +
+      "border-radius:12px;background:#4f46e5;color:#fff;font:600 16px system-ui;text-align:center;" +
+      "cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.45)";
+    document.body.appendChild(startPrompt);
+  }
+  function hideStartPrompt() { if (startPrompt) startPrompt.remove(); startPrompt = null; }
+
+  function sendUtterance(samples) {
+    const wav = voice.encodeWav(samples, voice.SAMPLE_RATE);
+    submitRecordedAudio(new Blob([wav], { type: "audio/wav" }));
+  }
+
+  // ── Voice enrolment: one clean clip of the patient, compared with every new clip ──
+  const enrollVoiceBtn = document.getElementById("enrollVoiceBtn");
+  const enrollStatus = document.getElementById("enrollStatus");
+  const enrollRemoveBtn = document.getElementById("enrollRemoveBtn");
+  let enrollNext = false;
+
+  function showEnrollment(info) {
+    if (info && info.enrolled) {
+      enrollStatus.textContent = `✓ Voice enrolled (${info.seconds.toFixed(1)} s, ${new Date(info.enrolledAt).toLocaleString()})`;
+      enrollStatus.style.color = "#34d399";
+      enrollRemoveBtn.style.display = "";
+    } else {
+      enrollStatus.textContent = "Voice not enrolled: spoken personal questions are not answered";
+      enrollStatus.style.color = "var(--quiet)";
+      enrollRemoveBtn.style.display = "none";
+    }
+  }
+  fetch("/voice/enroll").then(r => r.json()).then(showEnrollment).catch(() => {});
+
+  async function saveEnrollment(samples) {
+    const seconds = samples.length / voice.SAMPLE_RATE;
+    if (seconds < 3) {
+      enrollStatus.textContent = `That was ${seconds.toFixed(1)} s. Please say a longer sentence (4–8 s).`;
+      enrollNext = true;
+      return;
+    }
+    const wav = voice.encodeWav(samples, voice.SAMPLE_RATE);
+    let binary = "";
+    for (let i = 0; i < wav.length; i += 0x8000) binary += String.fromCharCode.apply(null, wav.subarray(i, i + 0x8000));
+    const res = await fetch("/voice/enroll", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ audio: btoa(binary), mimeType: "audio/wav", seconds }) });
+    showEnrollment(res.ok ? await res.json() : null);
+    if (res.ok) speak("Thank you. I'll recognise your voice from now on.");
+  }
+
+  enrollVoiceBtn.addEventListener("click", async () => {
+    unlockAudio();
+    if (!isHardwareMicActive && !(await startHardwareAudioIngestion())) return;
+    enrollNext = true;
+    detector.reset();
+    enrollStatus.style.color = "#fbbf24";
+    enrollStatus.textContent = "Listening: say one natural sentence of 4–8 seconds, alone, with no TV on…";
+    // If nothing is caught, say why in numbers instead of waiting forever.
+    const started = Date.now();
+    const check = setInterval(() => {
+      if (!enrollNext) { clearInterval(check); return; }
+      if (Date.now() - started > 10_000) {
+        const { floorDb, thresholdDb } = detector.level();
+        enrollStatus.style.color = "#fb7185";
+        enrollStatus.textContent = `I can't hear a sentence yet: room ${Math.round(floorDb)} dBFS, speech must pass ` +
+          `${Math.round(thresholdDb)} dBFS. Move closer to the mic or speak up.`;
+      }
+    }, 1000);
+  });
+  enrollRemoveBtn.addEventListener("click", async () => {
+    const res = await fetch("/voice/enroll", { method: "DELETE" });
+    showEnrollment(res.ok ? await res.json() : null);
+  });
+
+  // Mic health, reported to the daemon log every 5 s: the loudest moment, the room's
+  // floor and the trigger level. "Nothing happens when I speak" is then a number.
+  const micStats = { peakDb: -100, blocks: 0, utterances: 0 };
+  function reportMic(event = {}) {
+    if (!detector) return;
+    const { floorDb, thresholdDb, speaking } = detector.level();
+    fetch("/telemetry/mic", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ peakDb: micStats.peakDb, floorDb, thresholdDb, speaking, active: isHardwareMicActive,
+        aiSpeaking, enrolling: enrollNext, blocks: micStats.blocks, utterances: micStats.utterances,
+        track: mediaStream ? mediaStream.getAudioTracks()[0]?.label : null, ...event }) }).catch(() => {});
+    micStats.peakDb = -100;
+    micStats.blocks = 0;
+  }
+  setInterval(() => reportMic(), 5000);
+
+  function onAudioBlock(input, inputRate) {
+    const block = voice.downsample(input, inputRate, voice.SAMPLE_RATE);
+    micStats.blocks++;
+    micStats.peakDb = Math.max(micStats.peakDb, voice.rmsDbfs(block));
+    if (manualRecording) { manualSamples.push(block); return; }
+    // While the AI is talking (and just after), the mic would hear the speaker.
+    if (aiSpeaking || Date.now() < resumeListeningAt) {
+      if (detector.speaking) detector.reset();
+      updateVadUi("muted");
+      return;
+    }
+    const utterance = detector.push(block);
+    if (utterance) micStats.utterances++;
+    if (utterance && enrollNext) {
+      enrollNext = false;                     // this clip is the reference, not a question
+      reportMic({ event: "enroll_clip", seconds: utterance.length / voice.SAMPLE_RATE });
+      updateVadUi("idle");
+      saveEnrollment(utterance);
+    } else if (utterance) {
+      updateVadUi("processing");
+      sendUtterance(utterance);
+    } else {
+      updateVadUi(detector.speaking ? "speaking" : "idle");
+    }
+  }
+
+  const spectrum = new Uint8Array(32);
+  function drawLevels() {
+    if (analyser && isHardwareMicActive) {
+      analyser.getByteFrequencyData(spectrum);
+      for (let i = 0; i < NUM_BARS; i++) {
+        const pct = Math.max(8, Math.min(100, Math.round(((spectrum[i] || 0) / 255) * 100)));
+        bars[i].style.height = pct + "%";
+        bars[i].className = pct > 60 ? "spectrum-bar spike" : pct > 20 ? "spectrum-bar active" : "spectrum-bar";
+      }
+      const { db, floorDb, thresholdDb } = detector.level();
+      dbStatus.textContent = `${Math.round(db)} dBFS · room ${Math.round(floorDb)} · speech > ${Math.round(thresholdDb)}`;
+    }
+    requestAnimationFrame(drawLevels);
+  }
+
+  async function startHardwareAudioIngestion() {
+    try {
+      voice = voice || await import("/capture/voice.js");
+      if (!mediaStream) {
+        // No echo cancellation: the mic is already ignored while the AI talks, and on
+        // Windows echo cancellation makes the system treat the page as a call and turn
+        // other sound down. Auto-gain and noise suppression stay on: built-in laptop mics
+        // are quiet when raw, and the detector compares speech with the room's own
+        // floor, so a steady gain change does not upset it.
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true, autoGainControl: true }
+        });
+      }
+      // One context for listening and speaking, so a single unlock covers both.
+      audioCtx = getAudioContext();
+      if (audioCtx.state !== "running") await audioCtx.resume().catch(() => {});
+      if (audioCtx.state !== "running") {
+        // The browser holds audio until the first interaction (kiosk launch skips this).
+        showStartPrompt();
+        vadStatus.textContent = "Status: Waiting for one click to start listening";
+        return false;
+      }
+
+      if (!processorNode) {
+        const source = audioCtx.createMediaStreamSource(mediaStream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+        const sink = audioCtx.createGain();
+        sink.gain.value = 0;                     // a processor only runs while connected
+        source.connect(processorNode);
+        processorNode.connect(sink);
+        sink.connect(audioCtx.destination);
+        detector = new voice.UtteranceDetector();
+        processorNode.onaudioprocess = e => {
+          if (isHardwareMicActive) onAudioBlock(e.inputBuffer.getChannelData(0), audioCtx.sampleRate);
+        };
+        drawLevels();
+      }
+
+      isHardwareMicActive = true;
+      userMutedMic = false;
+      hideStartPrompt();
+      refreshSpeakers().catch(() => {});      // device labels are only visible once the mic is allowed
+      updateVadUi("idle");
+      toggleModeBtn.innerHTML = "🎙️ Ambient Mic: ON (24/7)";
+      toggleModeBtn.style.color = "#34d399";
+      toggleModeBtn.style.borderColor = "rgba(16, 185, 129, 0.45)";
+      toggleModeBtn.style.background = "rgba(16, 185, 129, 0.15)";
+      textPromptInput.placeholder = "Ambient listening active... Speak anytime or type here...";
+      return true;
+    } catch (err) {
+      console.warn("Hardware audio access error:", err);
+      vadStatus.textContent = "Status: Mic Blocked / Error — " + (err.message || err.name);
+      micBtn.innerHTML = "🎙️ Enable Mic";
+      return false;
+    }
+  }
+
+  // Push-to-talk stays available as an override: click to record, click to send.
+  micBtn.addEventListener("click", async () => {
+    unlockAudio();
+    if (!isHardwareMicActive) { await startHardwareAudioIngestion(); return; }
+    if (!manualRecording) {
+      detector.reset();
+      manualSamples = [];
+      manualRecording = true;
+      updateVadUi("manual_recording");
+    } else {
+      manualRecording = false;
+      const total = manualSamples.reduce((n, b) => n + b.length, 0);
+      const samples = new Float32Array(total);
+      let offset = 0;
+      for (const b of manualSamples) { samples.set(b, offset); offset += b.length; }
+      manualSamples = null;
+      if (total >= voice.SAMPLE_RATE * 0.3) { updateVadUi("processing"); sendUtterance(samples); }
+      else updateVadUi("idle");
+    }
+  });
+
+  toggleModeBtn.addEventListener("click", () => {
+    unlockAudio();
+    if (isHardwareMicActive) {
+      isHardwareMicActive = false;
+      userMutedMic = true;
+      manualRecording = false;
+      if (detector) detector.reset();
+      updateVadUi("off");
+      toggleModeBtn.innerHTML = "🎙️ Mic: Muted";
+      toggleModeBtn.style.color = "var(--ink)";
+      toggleModeBtn.style.borderColor = "var(--border)";
+    } else {
+      startHardwareAudioIngestion();
+    }
+  });
+
+  // ── Voice Activator Hero Banner Wiring ────────────────────────────────
+  const voiceActivatorBanner = document.getElementById("voiceActivatorBanner");
+  const activateVoiceNowBtn = document.getElementById("activateVoiceNowBtn");
+  const activatorIcon = document.getElementById("activatorIcon");
+  const activatorTitle = document.getElementById("activatorTitle");
+  const activatorSub = document.getElementById("activatorSub");
+
+  async function activateVoiceAssistant() {
+    unlockAudio();
+    playChime("answer");
+
+    if (voiceActivatorBanner) {
+      voiceActivatorBanner.className = "voice-activator-banner active";
+      if (activatorIcon) activatorIcon.textContent = "🟢";
+      if (activatorTitle) activatorTitle.textContent = "24/7 Voice Assistant Active · Always Listening";
+      if (activatorSub) activatorSub.textContent = "Hardware microphone active with Gemini 4 Argon Acoustic Ear & Diarization.";
+      if (activateVoiceNowBtn) activateVoiceNowBtn.textContent = "✓ Voice Active";
+    }
+
+    await startHardwareAudioIngestion();
+
+    speak("Hello Margaret! I am your AnchorCare cognitive companion. I am listening continuously, and I will always answer with my voice.");
+  }
+
+  if (voiceActivatorBanner) {
+    voiceActivatorBanner.addEventListener("click", activateVoiceAssistant);
+  }
+  if (activateVoiceNowBtn) {
+    activateVoiceNowBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      activateVoiceAssistant();
+    });
+  }
+
+  // Start listening as soon as the page opens. A browser holds audio until one
+  // interaction unless it was launched for kiosk use (npm run agent:kiosk), so any
+  // click or key finishes a start that was held back. A deliberate mute is respected.
+  startHardwareAudioIngestion();
+  const finishStart = () => {
+    unlockAudio();
+    if (!isHardwareMicActive && !userMutedMic) startHardwareAudioIngestion();
+  };
+  window.addEventListener("click", finishStart);
+  window.addEventListener("keydown", finishStart);
+
+  // ── Real-Time SSE Stream & Feed ──────────────────────────────────────────
+  function setupEvents() {
+    try {
+      const es = new EventSource("/events");
+      es.onmessage = function (ev) {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === "init") {
+            onSpeakerState(data.audioOutput);
+            if (data.location) {
+              const d = data.location.distanceFromHomeMeters || 0;
+              const isOut = data.location.state === "left_safe_zone" || d > 50;
+              currentGeo = { ...data.location, distanceFromHomeMeters: d, state: isOut ? "left_safe_zone" : "inside_safe_zone" };
+              if (isOut) {
+                radarCircle.className = "radar-circle outside";
+                geoState.textContent = `Left Safe Zone (${(d/1609.34).toFixed(2)} mi)`;
+              }
+            }
+            if (data.recent && data.recent.length) {
+              for (const item of data.recent.slice().reverse()) {
+                if (item.type === "patient_turn") addTimelineItem("patient", `"${item.text}"`);
+                else if (item.type === "heard_turn") addTimelineItem("caregiver", `"${item.text}"`, { speaker: item.speaker || "Caregiver" });
+                else if (item.type === "companion_answer") showReplayedAnswer(item);
+              }
+            }
+          } else if (data.type === "companion_answer") {
+            if (data.originClientId === CLIENT_ID) {
+              if (httpReturned.has(data.patientTurnId)) handleCompanionAnswer(data.answer, data);
+              else ownPending.set(data.patientTurnId, data);
+            } else {
+              handleCompanionAnswer(data.answer, data, { silent: true });   // another tab asked; it speaks
+            }
+          } else if (data.type === "audio_output") {
+            onSpeakerState(data);
+          } else if (data.type === "speaking") {
+            // Some tab is talking: every tab's mic stays deaf until it has finished.
+            resumeListeningAt = Math.max(resumeListeningAt, Number(data.until) || 0);
+          } else if (data.type === "alert") {
+            triggerAlert({ alertIds: [data.alertId], alertReasons: data.reason ? [data.reason] : [] });
+          } else if (data.type === "caregiver_message") {
+            if (data.status !== "skipped_cooldown") {
+              const how = data.mode === "twilio_live" ? `SMS ${data.status}` : "simulated SMS (not sent: " + (data.note || "live SMS off") + ")";
+              addTimelineItem("system", `✉️ Caregiver message, ${how}, to ${data.to}: "${data.body}"`);
+            }
+          } else if (data.type === "gps") {
+            // Location reported by another device (a phone, a test): keep the geofence view current.
+            const miles = parseFloat(data.distance) || 0;
+            const outside = data.state === "left_safe_zone";
+            currentGeo = { ...currentGeo, state: data.state, distanceFromHomeMeters: Math.round(miles * 1609.34) };
+            radarCircle.className = outside ? "radar-circle outside" : "radar-circle";
+            geoState.textContent = outside ? `Left Safe Zone (${miles.toFixed(2)} mi)` : "Inside Safe Zone";
+          } else if (data.type === "phone_call") {
+            handlePhoneCallEvent(data);
+          }
+        } catch (e) {}
+      };
+      es.onerror = function () {
+        es.close();
+        setTimeout(setupEvents, 3500);
+      };
+    } catch (e) {}
+  }
+
+  // ── Outbound Phone Calling Controls & Feedback ───────────────────────────
+  const targetPhoneInput = document.getElementById("targetPhoneInput");
+  const savePhoneBtn = document.getElementById("savePhoneBtn");
+  const triggerCallBtn = document.getElementById("triggerCallBtn");
+  const callStatusBadge = document.getElementById("callStatusBadge");
+  const callLiveBanner = document.getElementById("callLiveBanner");
+  const callLiveTitle = document.getElementById("callLiveTitle");
+  const callLiveDetails = document.getElementById("callLiveDetails");
+  const scenCallMargaret = document.getElementById("scenCallMargaret");
+
+  async function fetchCallStatus() {
+    try {
+      const res = await fetch("/call/status");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.targetPhoneNumber && targetPhoneInput) {
+          targetPhoneInput.value = data.targetPhoneNumber;
+        }
+      }
+    } catch (e) {}
+  }
+  fetchCallStatus();
+
+  if (savePhoneBtn) {
+    savePhoneBtn.addEventListener("click", async () => {
+      const num = targetPhoneInput.value.trim();
+      savePhoneBtn.textContent = "Saving...";
+      try {
+        const res = await fetch("/call/config", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ targetPhoneNumber: num })
+        });
+        if (res.ok) {
+          savePhoneBtn.textContent = "Saved ✓";
+          addTimelineItem("system", `Saved target demo phone number: ${num}`);
+          setTimeout(() => { savePhoneBtn.textContent = "Save Number"; }, 2000);
+        }
+      } catch (e) {
+        savePhoneBtn.textContent = "Failed";
+      }
+    });
+  }
+
+  if (triggerCallBtn) {
+    triggerCallBtn.addEventListener("click", () => {
+      submitUtterance("Call Margaret");
+    });
+  }
+
+  if (scenCallMargaret) {
+    scenCallMargaret.addEventListener("click", () => {
+      submitUtterance("Call Margaret");
+    });
+  }
+
+  function handlePhoneCallEvent(call) {
+    if (!callStatusBadge || !callLiveBanner) return;
+    callLiveBanner.style.display = "block";
+
+    if (call.status === "dialing") {
+      callStatusBadge.textContent = "Status: DIALING…";
+      callStatusBadge.style.background = "rgba(245, 158, 11, 0.2)";
+      callStatusBadge.style.color = "#fbbf24";
+      callStatusBadge.style.borderColor = "#f59e0b";
+      callLiveTitle.innerHTML = `<span>⚡</span> <span>Dialing ${call.to} (Anonymous Caller ID)...</span>`;
+      callLiveDetails.textContent = call.message || "Connecting outbound care line...";
+      addTimelineItem("system", `📞 [Outbound Call] Dialing ${call.to} anonymously...`);
+    } else if (call.status === "ringing") {
+      callStatusBadge.textContent = "Status: RINGING…";
+      callStatusBadge.style.background = "rgba(56, 189, 248, 0.2)";
+      callStatusBadge.style.color = "#38bdf8";
+      callStatusBadge.style.borderColor = "#38bdf8";
+      callLiveTitle.innerHTML = `<span>🔔</span> <span>Line is Ringing at ${call.to}...</span>`;
+      callLiveDetails.textContent = call.message || "Waiting for recipient to pick up...";
+      addTimelineItem("system", `📞 [Outbound Call] Ringing ${call.to}...`);
+    } else if (call.status === "in-progress") {
+      callStatusBadge.textContent = "Status: CONNECTED (ANONYMOUS)";
+      callStatusBadge.style.background = "rgba(16, 185, 129, 0.2)";
+      callStatusBadge.style.color = "#34d399";
+      callStatusBadge.style.borderColor = "#10b981";
+      callLiveTitle.innerHTML = `<span>🎙️</span> <span>Connected — Anonymous Synthetic Voice Speaking</span>`;
+      callLiveDetails.textContent = call.spokenMessage || call.message || "Playing automated reassurance notification...";
+      addTimelineItem("companion", `📞 [Anonymous Voice on Call]: "${call.spokenMessage || call.message}"`);
+      if (ttsEnabled && call.spokenMessage) {
+        speak(call.spokenMessage);
+      }
+    } else if (call.status === "completed") {
+      callStatusBadge.textContent = "Status: CALL COMPLETED";
+      callStatusBadge.style.background = "rgba(16, 185, 129, 0.15)";
+      callStatusBadge.style.color = "#a7f3d0";
+      callStatusBadge.style.borderColor = "rgba(16, 185, 129, 0.3)";
+      callLiveTitle.innerHTML = `<span>✓</span> <span>Call Completed Successfully</span>`;
+      callLiveDetails.textContent = "Anonymous care notification successfully delivered.";
+      addTimelineItem("system", `📞 [Outbound Call] Call ended. Notification recorded in audit log.`);
+      setTimeout(() => {
+        callStatusBadge.textContent = "Status: IDLE";
+        callStatusBadge.style.background = "rgba(148, 163, 184, 0.12)";
+        callStatusBadge.style.color = "#94a3b8";
+        callStatusBadge.style.borderColor = "rgba(148, 163, 184, 0.2)";
+      }, 8000);
+    } else if (call.status === "failed") {
+      callStatusBadge.textContent = "Status: FAILED";
+      callStatusBadge.style.background = "rgba(244, 63, 94, 0.2)";
+      callStatusBadge.style.color = "#fb7185";
+      callStatusBadge.style.borderColor = "#f43f5e";
+      callLiveTitle.innerHTML = `<span>⚠️</span> <span>Call Submission Failed</span>`;
+      callLiveDetails.textContent = call.error || "Unable to dispatch call.";
+      addTimelineItem("system", `📞 [Outbound Call Error]: ${call.error}`);
+    }
+  }
+
+  setupEvents();
+})();
+</script>
+</body>
+</html>
