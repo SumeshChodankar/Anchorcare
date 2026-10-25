@@ -2,12 +2,14 @@
 // project (the web app is vercel/build.mjs). Every path goes to one bundled function,
 // so the hosted URL behaves like http://127.0.0.1:4319/.
 //
+// A push to main builds it on Vercel (vercel/build.mjs hands over when ANCHORCARE_APP=agent).
+// To deploy from this machine instead:
 //   node vercel/agent-build.mjs
 //   npx vercel@65.2.0 deploy --prebuilt --prod --cwd vercel/agent
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
-const out = 'vercel/agent/.vercel/output';
+const out = process.env.VERCEL ? '.vercel/output' : 'vercel/agent/.vercel/output';
 rmSync(out, { recursive: true, force: true });
 
 const fn = `${out}/functions/agent.func`;

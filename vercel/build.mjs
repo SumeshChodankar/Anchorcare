@@ -1,9 +1,17 @@
 // Builds the web app for Vercel's Build Output API (https://vercel.com/docs/build-output-api):
 // the Vite pages as static files, and the /api routes as one bundled Node function.
-// Run by `vercel build` (see vercel.json); the daemon in agent/ stays on the local machine.
+// Run by `vercel build` (see vercel.json) and by every push to main.
+//
+// One repository, two Vercel projects: anchorcare (this web app) and anchorcare-agent
+// (the voice agent), which sets ANCHORCARE_APP=agent so a push deploys each its own app.
 import { build } from 'esbuild';
 import { execSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+
+if (process.env.ANCHORCARE_APP === 'agent') {
+  await import('./agent-build.mjs');
+  process.exit(0);
+}
 
 const out = '.vercel/output';
 rmSync(out, { recursive: true, force: true });
