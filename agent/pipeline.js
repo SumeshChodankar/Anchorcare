@@ -213,7 +213,9 @@ export function lifeFitsBetter(question, item) {
 
 /** A life-memory item read back, citing itself. */
 export function lifeCare(item) {
-  const text = spokenSummary(item.text.replace(/^[^:]{1,80}:\s*/, item.collection === "personal_records" ? "" : "$&"));
+  // Records and logs are read from their note, not their internal label ("Night's sleep (sleep, …):").
+  const text = spokenSummary(["personal_records", "daily_logs"].includes(item.collection)
+    ? item.text.replace(/^[^:]{1,80}:\s*/, "") : item.text);
   const answer = item.collection === "people" || item.collection === "semantic_edges" ? text
     : item.collection === "daily_logs" ? `Your notes from ${item.when} say: ${text}`
     : item.sourceType === "user_report" ? `You told your care team: "${text}"`
@@ -342,7 +344,7 @@ export function herWordsCare(utterance, now, timezone) {
 // CREATE_REMINDER needs a caregiver's approval, so the agent queues it for them and
 // says so, rather than claiming it booked anything.
 // Either order: "book a doctor's appointment" and "I have an appointment, can you book it?"
-const BOOK_VERB = String.raw`\b(book|schedule|arrange|set up|make)\b`;
+const BOOK_VERB = String.raw`\b(book|schedule|arrange|set(?: up)?|make|add)\b`;   // "set a reminder", "add it"
 const BOOK_NOUN = String.raw`\b(appointment|visit|reminder|doctor|gp|dentist|meeting|check-?up)\b`;
 const BOOKING = new RegExp(`${BOOK_VERB}.*${BOOK_NOUN}|${BOOK_NOUN}.*${BOOK_VERB}|\\bremind me\\b`, "i");
 export const isBookingRequest = text => BOOKING.test(text) && !isMedicationChange(text);

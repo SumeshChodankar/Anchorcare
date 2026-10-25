@@ -792,7 +792,8 @@ test("her words: read back as a dated quotation, marked unconfirmed, citing her 
 
 test("booking: a request to book goes to the caregiver, a question about it does not", () => {
   for (const q of ["I have an appointment tomorrow, can you book it?", "Please book a doctor's appointment",
-                   "Remind me to call Priya", "Can you schedule a visit with the GP?"]) {
+                   "Remind me to call Priya", "Can you schedule a visit with the GP?",
+                   "I have an appointment with Dr Patel tomorrow at nine, can you set a reminder?"]) {
     assert.equal(isBookingRequest(q), true, q);
   }
   for (const q of ["When is my appointment?", "Where are my glasses?", "Can you double my medication dose?"]) {
@@ -847,7 +848,7 @@ test("life: people, preferences and logs answer plain questions, citing their ow
   const tea = lifeRecall("What tea do I like?", ITEMS);
   assert.equal(tea.item.id, "pr_tea");
   assert.equal(lifeCare(tea.item).answer, "Your notes say: Alex prefers Earl Grey tea without sugar.");
-  assert.match(lifeCare(lifeRecall("What did I have for lunch?", ITEMS).item).answer, /^Your notes from Friday .* say: Lunch/);
+  assert.match(lifeCare(lifeRecall("What did I have for lunch?", ITEMS).item).answer, /^Your notes from Friday .* say: Sam reported vegetable soup.$/, "the note itself, not its internal label");
   assert.equal(lifeRecall("Call Sarah", ITEMS), null, "a request, not a question");
   assert.equal(lifeRecall("What is the weather?", ITEMS), null, "nothing approved matches");
 });
