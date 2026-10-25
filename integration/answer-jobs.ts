@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {ApiError} from '../engram-retrieval/src/validation.js';
-type Job={id:string;actor:string;state:string;phase:string;expires:number;controller:AbortController;result?:any;interim?:any;error?:string;memoryInput?:any;timer?:ReturnType<typeof setTimeout>};
+type Job={id:string;actor:string;state:string;phase:string;expires:number;controller:AbortController;result?:any;interim?:any;error?:string;memoryInput?:any;timer?:ReturnType<typeof setTimeout>;done?:Promise<void>};
 export class AnswerJobs{
  private jobs=new Map<string,Job>();
  constructor(private lifetimeMs=10*60000,private deadlineMs=90000){}
@@ -11,7 +11,7 @@ export class AnswerJobs{
   const job:Job={id:randomUUID(),actor,state:'pending',phase:'checking',expires:Date.now()+this.lifetimeMs,controller:new AbortController()};
   this.jobs.set(job.id,job);
   job.timer=setTimeout(()=>{if(job.state==='pending'){job.controller.abort();job.state='failed';job.error='The reply is taking too long. Please try again; reminders are still running.';}},this.deadlineMs);
-  void run(job.controller.signal,p=>{if(job.state==='pending')job.phase=p;},input=>{job.memoryInput=input;},result=>{if(job.state==='pending')job.interim=result;}).then(result=>{
+  job.done=run(job.controller.signal,p=>{if(job.state==='pending')job.phase=p;},input=>{job.memoryInput=input;},result=>{if(job.state==='pending')job.interim=result;}).then(result=>{
    if(job.controller.signal.aborted||job.state!=='pending')return;
    job.result=result;job.state='completed';job.phase='ready';
   }).catch((e:any)=>{

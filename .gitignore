@@ -40,3 +40,4 @@ logs/
 
 # Reference voice clip for speaker matching (biometric: never commit)
 .voice-enrollment/
+.vercel/

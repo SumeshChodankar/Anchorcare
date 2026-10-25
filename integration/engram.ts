@@ -37,7 +37,9 @@ function matches(value: string, expected?: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export async function mountEngram(app: Express) {
+// serverless: no process outlives a request (Vercel), so the worker runs on incoming
+// requests instead of timers, and /asks answers within the request it was asked in.
+export async function mountEngram(app: Express, {serverless=false}:{serverless?:boolean}={}) {
   const cfg = config();
   const companion = companionSettings();
   const patient = process.env.ANCHORCARE_PATIENT_ID || cfg.subjectIds[0];
@@ -184,6 +186,7 @@ export async function mountEngram(app: Express) {
     res.setHeader('Cache-Control', 'no-store');
     try {
       limits.take('ip:'+req.ip,240);
+      if(serverless)await catchUp();
       if(req.method==='POST')validateRequestObject(req.body);
       else validateRequestObject(req.query);
       const origin = req.headers.origin;
@@ -230,7 +233,10 @@ export async function mountEngram(app: Express) {
       if(req.method==='POST'&&req.path==='/asks'){
         // Validate shape before allocating background work. Scope is still selected by the server.
         if(typeof input.question!=='string'||!input.question.trim()||input.question.length>1000)return void res.status(400).json({error:'A question of 1-1000 characters is required'});
-        return void res.status(202).json(answerJobs.start(actor,(signal,progress,onContext,onInterim)=>answerQuestion(input,'/ask',admin,signal,progress,onContext,undefined,onInterim)));
+        const started=answerJobs.start(actor,(signal,progress,onContext,onInterim)=>answerQuestion(input,'/ask',admin,signal,progress,onContext,undefined,onInterim));
+        // A poll may reach another instance, which never saw this job: answer now instead.
+        if(serverless){const job=answerJobs.get(started.jobId,actor);await job.done;return void res.json(answerJobs.snapshot(job));}
+        return void res.status(202).json(started);
       }
       const match=req.path.match(/^\/asks\/([a-f0-9-]+)(\/cancel)?$/);
       if(match&&req.method==='POST'&&match[2])return void res.json(answerJobs.cancel(match[1],actor));
@@ -282,10 +288,18 @@ export async function mountEngram(app: Express) {
   });
   let mobileRunning:Promise<any>|undefined;
   const mobileTick=()=>{if(!mobileRunning)mobileRunning=mobile.tick().then(()=>push.tick()).catch(()=>console.error('Mobile dispatch unavailable')).finally(()=>{mobileRunning=undefined;});};
-  const mobileTimer=setInterval(mobileTick,5000);
   let running: Promise<any> | undefined;
   const tick = () => { if (!running) running = service.tick().catch(() => console.error('Engram worker failed')).finally(() => { running = undefined; }); };
-  const timer = cfg.runWorker ? setInterval(tick, cfg.intervalMs) : undefined;
-  if (cfg.runWorker) tick();
+  // Jobs are leased and SOS calls claimed in Atlas, so instances running this at once is safe.
+  let lastCatchUp=0;
+  async function catchUp(){
+    if(Date.now()-lastCatchUp<cfg.intervalMs)return;
+    lastCatchUp=Date.now();
+    mobileTick();if(cfg.runWorker)tick();
+    await Promise.all([mobileRunning,running]);
+  }
+  const mobileTimer=serverless?undefined:setInterval(mobileTick,5000);
+  const timer = cfg.runWorker&&!serverless ? setInterval(tick, cfg.intervalMs) : undefined;
+  if (cfg.runWorker&&!serverless) tick();
   return { service, store, close: async () => { answerJobs.close(); clearInterval(mobileTimer); if(mobileRunning)await mobileRunning; if (timer) clearInterval(timer); if (running) await running; await store.close(); } };
 }
