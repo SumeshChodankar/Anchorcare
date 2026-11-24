@@ -1,5 +1,85 @@
 # [AnchorCare + Engram](https://anchorcare-agent.vercel.app/)
-AnchorCare's original React/TypeScript prototype with Engram's MongoDB retrieval and proactive-trigger component integrated into the Express backend.
+
+# The Problem
+
+Millions of people living with dementia, Alzheimer's disease, cognitive decline, brain injury, and age-related memory impairment struggle with retaining important information about their daily lives.
+
+For patients, memory loss can lead to:
+
+- Forgetting loved ones and important relationships
+- Missing medications and appointments
+- Losing context about recent events
+- Increased anxiety and confusion
+- Reduced independence and quality of life
+
+For caregivers and family members, the challenge is equally difficult:
+
+- Constantly repeating information
+- Managing reminders manually
+- Tracking changes in memory over time
+- Providing context during conversations
+- Ensuring important memories remain accessible
+
+Current solutions are fragmented. Notes apps store information but cannot reason about it. Chatbots can converse but forget critical personal context. Medical systems are often focused on records rather than preserving meaningful day-to-day memories.
+
+# Our Vision
+
+AnchorCare aims to become a trusted AI memory companion that helps preserve personal identity, daily context, and meaningful relationships.
+
+Rather than acting as a medical decision system, AnchorCare serves as a memory support layer between patients, caregivers, and AI.
+
+The goal is to create a system that can:
+
+- Remember important life events
+- Recall family members, friends, and caregivers
+- Surface relevant memories when needed
+- Provide evidence-backed responses
+- Assist with reminders and routines
+- Help maintain continuity of personal identity over time
+
+# What We Are Building
+
+AnchorCare + Engram combines long-term memory retrieval, caregiver oversight, and conversational AI into a unified memory assistance platform.
+
+The platform consists of:
+
+### Memory Layer
+
+A structured memory ledger that stores approved life events, people, routines, preferences, and contextual information.
+
+### Retrieval Layer
+
+Engram retrieves the most relevant memories based on the user's question, current context, and historical information.
+
+### Companion Layer
+
+An AI companion that answers questions using verified memory evidence rather than relying solely on model-generated responses.
+
+### Caregiver Layer
+
+A caregiver review system that allows memories, reminders, corrections, and images to be reviewed before becoming part of the patient's memory history.
+
+### Proactive Support Layer
+
+The system can surface reminders, familiar faces, important routines, and contextual information at appropriate moments.
+
+# Why It Matters
+
+Memory is more than information.
+
+Memory is identity.
+
+As cognitive decline progresses, people often lose access to the stories, relationships, and experiences that define who they are. We believe AI can help preserve and reconnect those memories, giving patients greater confidence and giving caregivers better tools to support them.
+
+AnchorCare is designed to be the foundation for a future generation of memory-aware AI systems that can safely assist people living with cognitive challenges while keeping humans in control.
+
+
+
+
+
+## AnchorCare's original React/TypeScript prototype with Engram's MongoDB retrieval and proactive-trigger component integrated into the Express backend.
+
+
 
 
 ## Demo Videos
